@@ -202,7 +202,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     { name: 'Fechamento', fullName: 'Fechamento de Check-in', realizado: parseFloat(performance.slaFechamento), meta: 98 },
     { name: 'Embarque', fullName: 'Início do Embarque', realizado: parseFloat(performance.slaEmbarque), meta: 95 },
     { name: 'Último Pax', fullName: 'Último PAX a Bordo', realizado: parseFloat(performance.slaUltimoPax), meta: 95 },
-    { name: 'Bags Mão', fullName: 'Meta de BAGS de Mão', realizado: parseFloat(performance.slaBags), meta: 95 },
+    { name: 'Bags Mão', fullName: 'Meta de BAGS de Mão', realizado: parseFloat(performance.slaBags), meta: 70 }, // Meta ajustada para 70% conforme solicitado
   ] : [];
 
   const CustomTargetTick = (props: any) => {
