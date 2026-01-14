@@ -11,7 +11,8 @@ import {
   Tooltip, 
   ResponsiveContainer,
   Cell,
-  ReferenceLine
+  ReferenceLine,
+  LabelList
 } from 'recharts';
 
 interface DashboardGeralProps {
@@ -196,12 +197,13 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     };
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
 
+  // Labels curtas para o gráfico vertical
   const slaData = performance ? [
-    { name: 'Abertura de Check-in', realizado: parseFloat(performance.slaAbertura), meta: 98 },
-    { name: 'Fechamento de Check-in', realizado: parseFloat(performance.slaFechamento), meta: 98 },
-    { name: 'Início do Embarque', realizado: parseFloat(performance.slaEmbarque), meta: 95 },
-    { name: 'Último PAX a Bordo', realizado: parseFloat(performance.slaUltimoPax), meta: 95 },
-    { name: 'Meta de BAGS de Mão', realizado: parseFloat(performance.slaBags), meta: 95 },
+    { name: 'Abertura', fullName: 'Abertura de Check-in', realizado: parseFloat(performance.slaAbertura), meta: 98 },
+    { name: 'Fechamento', fullName: 'Fechamento de Check-in', realizado: parseFloat(performance.slaFechamento), meta: 98 },
+    { name: 'Embarque', fullName: 'Início do Embarque', realizado: parseFloat(performance.slaEmbarque), meta: 95 },
+    { name: 'Último Pax', fullName: 'Último PAX a Bordo', realizado: parseFloat(performance.slaUltimoPax), meta: 95 },
+    { name: 'Bags Mão', fullName: 'Meta de BAGS de Mão', realizado: parseFloat(performance.slaBags), meta: 95 },
   ] : [];
 
   const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -274,18 +276,36 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                 </div>
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={slaData} layout="vertical" margin={{ top: 10, right: 60, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                      <XAxis type="number" domain={[0, 100]} hide />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={140} tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} />
-                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any) => [`${value}%`, 'Realizado']} />
-                      <Bar dataKey="realizado" radius={[0, 4, 4, 0]} barSize={24}>
+                    <BarChart data={slaData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} 
+                        interval={0}
+                      />
+                      <YAxis 
+                        domain={[0, 100]} 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
+                        tickFormatter={(v) => `${v}%`}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }} 
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} 
+                        formatter={(value: any, name: string, props: any) => [`${value}%`, 'Realizado']}
+                        labelFormatter={(label, props) => props[0]?.payload?.fullName || label}
+                      />
+                      <ReferenceLine y={95} stroke="#cbd5e1" strokeDasharray="5 5" label={{ position: 'right', value: '95%', fill: '#94a3b8', fontSize: 9, fontWeight: 900 }} />
+                      <ReferenceLine y={98} stroke="#004181" strokeDasharray="5 5" label={{ position: 'right', value: '98%', fill: '#004181', fontSize: 9, fontWeight: 900 }} />
+                      <Bar dataKey="realizado" barSize={40} radius={[4, 4, 0, 0]}>
                         {slaData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.realizado >= entry.meta ? '#10b981' : '#fb394e'} />
                         ))}
+                        <LabelList dataKey="realizado" position="top" formatter={(v: number) => `${v}%`} style={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} />
                       </Bar>
-                      <ReferenceLine x={95} stroke="#cbd5e1" strokeDasharray="5 5" label={{ position: 'top', value: 'Meta 95%', fill: '#94a3b8', fontSize: 10, fontWeight: 900 }} />
-                      <ReferenceLine x={98} stroke="#004181" strokeDasharray="5 5" label={{ position: 'top', value: 'Meta 98%', fill: '#004181', fontSize: 10, fontWeight: 900 }} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
