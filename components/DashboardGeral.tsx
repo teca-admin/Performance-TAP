@@ -11,7 +11,8 @@ import {
   Tooltip, 
   ResponsiveContainer,
   Cell,
-  ReferenceLine
+  ReferenceLine,
+  Legend
 } from 'recharts';
 
 interface DashboardGeralProps {
@@ -49,7 +50,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
   const parseSheetDate = (dateStr: string | number): Date | null => {
     if (!dateStr) return null;
     const s = String(dateStr);
-    // Formato esperado: DD/MM/YYYY HH:MM:SS
     const parts = s.split(' ');
     const dateParts = parts[0].split('/');
     if (dateParts.length < 3) return null;
@@ -64,26 +64,24 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
   };
 
-  // Cálculo de voos potenciais (Segundas, Quartas e Sextas do mês)
   const getPotentialFlightsCount = (month: number, year: number): number => {
     let count = 0;
     const date = new Date(year, month, 1);
     while (date.getMonth() === month) {
-      const day = date.getDay(); // 0: Dom, 1: Seg, 2: Ter, 3: Qua, 4: Qui, 5: Sex, 6: Sáb
+      const day = date.getDay(); 
       if (day === 1 || day === 3 || day === 5) count++;
       date.setDate(date.getDate() + 1);
     }
     return count;
   };
 
-  // --- MAPEAMENTO DE COLUNAS ---
   const findKeyInContract = (keywords: string[]) => {
     return contractHeaders.find(h => keywords.some(k => h.toLowerCase() === k.toLowerCase())) || '';
   };
 
   const keys = useMemo(() => ({
     id: findKeyInContract(['ID Voo']),
-    pouso: headers[1], // Horário de pouso é a referência de data (Coluna 1)
+    pouso: headers[1], 
     std: findKeyInContract(['Previsão Decolagem']),
     abertura: findKeyInContract(['Abertura CHECK IN']),
     fechamento: findKeyInContract(['Fechamento CHECK IN']),
@@ -98,7 +96,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     queueTime: findKeyInContract(['MÉDIA DE TEMPO AGUARDANDO NA FILA']),
   }), [contractHeaders, headers]);
 
-  // --- FILTRAGEM POR MÊS/ANO ---
   const filteredByDate = useMemo(() => {
     return data.filter(row => {
       const d = parseSheetDate(row[keys.pouso]);
@@ -106,7 +103,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     });
   }, [data, keys.pouso, selectedMonth, selectedYear]);
 
-  // --- CÁLCULOS DE PERFORMANCE ---
   const performance = useMemo(() => {
     if (!filteredByDate.length || activeContract !== 'geral') return null;
 
@@ -158,7 +154,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       totalPax,
       avgOrbital: (sumOrbital / filteredByDate.length).toFixed(1),
       avgBase: (sumBase / filteredByDate.length).toFixed(1),
-      // O denominador para SLA agora é o Potencial do Mês
       slaAbertura: ((confAbertura / potentialCount) * 100).toFixed(1),
       slaFechamento: ((confFechamento / potentialCount) * 100).toFixed(1),
       slaEmbarque: ((confEmbarque / potentialCount) * 100).toFixed(1),
@@ -171,11 +166,11 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
 
   const slaData = performance ? [
-    { name: 'Abertura Check-in', realizado: parseFloat(performance.slaAbertura), meta: 98 },
-    { name: 'Fechamento Check-in', realizado: parseFloat(performance.slaFechamento), meta: 98 },
-    { name: 'Início Embarque', realizado: parseFloat(performance.slaEmbarque), meta: 95 },
-    { name: 'Último Pax a Bordo', realizado: parseFloat(performance.slaUltimoPax), meta: 95 },
-    { name: 'Meta Bags Portão', realizado: parseFloat(performance.slaBags), meta: 95 },
+    { name: 'Abertura CKIN', realizado: parseFloat(performance.slaAbertura), meta: 98 },
+    { name: 'Fechamento CKIN', realizado: parseFloat(performance.slaFechamento), meta: 98 },
+    { name: 'Início Emb.', realizado: parseFloat(performance.slaEmbarque), meta: 95 },
+    { name: 'Último Pax', realizado: parseFloat(performance.slaUltimoPax), meta: 95 },
+    { name: 'Bags Portão', realizado: parseFloat(performance.slaBags), meta: 95 },
   ] : [];
 
   const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -215,14 +210,14 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
             <select 
               value={selectedMonth} 
               onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase outline-none focus:ring-2 focus:ring-[#004181]/10"
             >
               {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
             <select 
               value={selectedYear} 
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase outline-none focus:ring-2 focus:ring-[#004181]/10"
             >
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
@@ -233,7 +228,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       {activeContract === 'geral' ? (
         performance ? (
           <>
-            {/* KPIs Superiores */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard 
                 title="Voos Realizados / Potencial" 
@@ -257,38 +251,43 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               />
             </div>
 
-            {/* Gráficos e Detalhes SLA */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Consolidado Mensal: SLA Operacional</h3>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Metas: Check-in 98% | Demais 95%</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Comparativo de Realizado vs Meta (98% / 95%)</p>
                   </div>
                 </div>
-                <div className="h-[300px]">
+                <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={slaData} layout="vertical" margin={{ left: 30, right: 40, top: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                      <XAxis type="number" domain={[0, 100]} hide />
-                      <YAxis 
+                    <BarChart data={slaData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
                         dataKey="name" 
-                        type="category" 
                         axisLine={false} 
                         tickLine={false} 
-                        width={130}
                         tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }}
+                      />
+                      <YAxis 
+                        domain={[0, 100]} 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8' }}
+                        tickFormatter={(val) => `${val}%`}
                       />
                       <Tooltip 
                         cursor={{ fill: '#f8fafc' }}
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '9px', fontWeight: 'bold' }}
+                        formatter={(value: any) => [`${value}%`, 'Realizado']}
                       />
-                      <Bar dataKey="realizado" radius={[0, 4, 4, 0]} barSize={24}>
+                      <Bar dataKey="realizado" radius={[4, 4, 0, 0]} barSize={40}>
                         {slaData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.realizado >= entry.meta ? '#10b981' : '#fb394e'} />
                         ))}
                       </Bar>
-                      <ReferenceLine x={95} stroke="#cbd5e1" strokeDasharray="3 3" />
+                      <ReferenceLine y={95} stroke="#cbd5e1" strokeDasharray="5 5" label={{ position: 'right', value: 'Meta 95%', fill: '#94a3b8', fontSize: 8, fontWeight: 900 }} />
+                      <ReferenceLine y={98} stroke="#004181" strokeDasharray="5 5" label={{ position: 'right', value: 'Meta 98%', fill: '#004181', fontSize: 8, fontWeight: 900 }} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -321,7 +320,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               </div>
             </div>
 
-            {/* TABELA DE DRILL-DOWN: STATUS POR VOO */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
@@ -392,7 +390,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
           </div>
         )
       ) : (
-        /* PLACEHOLDERS PARA OUTROS CONTRATOS */
         <div className="bg-white rounded-xl border border-slate-200 p-12 flex flex-col items-center justify-center text-center">
           <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-6" style={{ color: groups[activeContract].color }}>
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
