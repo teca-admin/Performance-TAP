@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { PerformanceData } from '../types';
 import StatCard from './StatCard';
 import { 
@@ -25,9 +25,42 @@ type ContractType = 'geral' | 'ahl' | 'ohd' | 'rampa' | 'limpeza' | 'safety';
 const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRecords }) => {
   const [activeContract, setActiveContract] = useState<ContractType>('geral');
   
-  // Estados para filtros temporais
+  // --- UTILITÁRIOS DE DATA E TEMPO ---
+  const parseSheetDate = (dateStr: string | number): Date | null => {
+    if (!dateStr) return null;
+    const s = String(dateStr);
+    const parts = s.split(' ');
+    const dateParts = parts[0].split('/');
+    if (dateParts.length < 3) return null;
+    return new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
+  };
+
+  // Identificar dinamicamente os anos disponíveis no banco de dados
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    const pousoHeader = headers[1]; // Coluna 1: Horário de Pouso
+    
+    data.forEach(row => {
+      const d = parseSheetDate(row[pousoHeader]);
+      if (d) years.add(d.getFullYear());
+    });
+    
+    // Fallback caso não consiga ler (padrão solicitado pelo usuário)
+    if (years.size === 0) return [2025, 2026];
+    
+    return Array.from(years).sort((a, b) => a - b);
+  }, [data, headers]);
+
+  // Estados para filtros temporais (inicializa com o mês atual e o primeiro ano disponível)
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number>(availableYears.includes(new Date().getFullYear()) ? new Date().getFullYear() : availableYears[0]);
+
+  // Sincroniza o ano selecionado se os anos disponíveis mudarem drasticamente
+  useEffect(() => {
+    if (!availableYears.includes(selectedYear)) {
+      setSelectedYear(availableYears[0]);
+    }
+  }, [availableYears]);
 
   // --- DEFINIÇÃO DOS GRUPOS (SLICING) ---
   const groups = {
@@ -43,17 +76,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     const config = groups[activeContract];
     return headers.slice(config.start, config.start + config.count);
   }, [headers, activeContract]);
-
-  // --- UTILITÁRIOS DE DATA E TEMPO ---
-  
-  const parseSheetDate = (dateStr: string | number): Date | null => {
-    if (!dateStr) return null;
-    const s = String(dateStr);
-    const parts = s.split(' ');
-    const dateParts = parts[0].split('/');
-    if (dateParts.length < 3) return null;
-    return new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
-  };
 
   const timeToMinutes = (timeStr: string | number): number => {
     if (!timeStr) return 0;
@@ -173,7 +195,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
   ] : [];
 
   const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  const years = [2024, 2025];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -218,7 +239,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}
               className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[9px] font-black uppercase outline-none focus:ring-2 focus:ring-[#004181]/10"
             >
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
+              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
         </div>
