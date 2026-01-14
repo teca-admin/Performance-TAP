@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardState, AppTab, PerformanceData } from './types';
 import { fetchSheetData } from './services/googleSheetsService';
@@ -57,8 +56,8 @@ const App: React.FC = () => {
             <div className="absolute inset-0 border-2 border-indigo-100 rounded-full"></div>
             <div className="absolute inset-0 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
-          <p className="text-slate-600 font-black text-[9px] uppercase tracking-widest">Sincronizando BI</p>
-          <p className="text-slate-400 text-[9px] mt-1 animate-pulse uppercase font-bold tracking-tight">Conectando ao Banco de Dados Principal • Aguarde...</p>
+          <p className="text-slate-600 font-black text-[10px] uppercase tracking-widest">Sincronizando BI</p>
+          <p className="text-slate-400 text-[10px] mt-1 animate-pulse uppercase font-bold tracking-tight">Conectando ao Banco de Dados Principal • Aguarde...</p>
         </div>
       </div>
     );
@@ -73,11 +72,11 @@ const App: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h2 className="text-[12px] font-black text-slate-800 mb-2 tracking-tight uppercase">FALHA NA EXTRAÇÃO</h2>
-          <p className="text-[9px] text-slate-500 mb-6 leading-relaxed font-bold uppercase">{state.error}</p>
+          <h2 className="text-[13px] font-black text-slate-800 mb-2 tracking-tight uppercase">FALHA NA EXTRAÇÃO</h2>
+          <p className="text-[10px] text-slate-500 mb-6 leading-relaxed font-bold uppercase">{state.error}</p>
           <button 
             onClick={loadDashboardData}
-            className="w-full bg-slate-900 hover:bg-black text-white text-[9px] font-black py-3 px-6 rounded-lg shadow-lg transition-all uppercase tracking-widest"
+            className="w-full bg-slate-900 hover:bg-black text-white text-[10px] font-black py-3 px-6 rounded-lg shadow-lg transition-all uppercase tracking-widest"
           >
             Tentar Reconectar Agora
           </button>
@@ -98,15 +97,15 @@ const App: React.FC = () => {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
               </div>
               <div>
-                <h1 className="text-[12px] font-black text-slate-800 tracking-tight leading-none uppercase">Performance TAP Dashboard</h1>
-                <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.1em] mt-1">Monitoramento Estratégico</p>
+                <h1 className="text-[13px] font-black text-slate-800 tracking-tight leading-none uppercase">Performance TAP Dashboard</h1>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.1em] mt-1">Monitoramento Estratégico</p>
               </div>
             </div>
 
             <nav className="flex items-center bg-slate-100 p-1 rounded-lg">
               <button 
                 onClick={() => setTab('dashboard')}
-                className={`relative px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${state.activeTab === 'dashboard' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`relative px-4 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${state.activeTab === 'dashboard' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 📊 Dashboard
                 {isFiltered && state.activeTab === 'dashboard' && (
@@ -115,7 +114,7 @@ const App: React.FC = () => {
               </button>
               <button 
                 onClick={() => setTab('data')}
-                className={`relative px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${state.activeTab === 'data' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`relative px-4 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${state.activeTab === 'data' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 🗄️ Banco de Dados
                 {isFiltered && state.activeTab === 'data' && (
@@ -129,12 +128,12 @@ const App: React.FC = () => {
             {isFiltered && (
               <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-orange-50 border border-orange-100 rounded-full">
                 <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>
-                <span className="text-[8px] font-black text-orange-700 uppercase">Filtro Ativo no Banco</span>
+                <span className="text-[9px] font-black text-orange-700 uppercase">Filtro Ativo no Banco</span>
               </div>
             )}
             <button 
               onClick={loadDashboardData} 
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-slate-200 uppercase tracking-widest"
+              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-slate-200 uppercase tracking-widest"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               Sincronizar
@@ -155,7 +154,7 @@ const App: React.FC = () => {
         )}
       </main>
       
-      <footer className="px-6 py-4 text-center text-slate-400 text-[9px] font-black uppercase tracking-[0.2em]">
+      <footer className="px-6 py-4 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
         Operação Performance TAP &copy; 2025 • Hub de Inteligência Operacional
       </footer>
     </div>
