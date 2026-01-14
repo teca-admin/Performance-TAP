@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { DashboardState, AppTab } from './types';
+import { DashboardState, AppTab, PerformanceData } from './types';
 import { fetchSheetData } from './services/googleSheetsService';
 import DataTable from './components/DataTable';
 import DashboardGeral from './components/DashboardGeral';
@@ -8,19 +8,26 @@ import DashboardGeral from './components/DashboardGeral';
 const App: React.FC = () => {
   const [state, setState] = useState<DashboardState>({
     data: [],
+    filteredData: [],
     headers: [],
     isLoading: true,
     error: null,
     insights: null,
     isAnalyzing: false,
-    activeTab: 'dashboard', // Inicia no Dashboard como visão principal
+    activeTab: 'dashboard',
   });
 
   const loadDashboardData = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
       const { headers, data } = await fetchSheetData();
-      setState(prev => ({ ...prev, data, headers, isLoading: false }));
+      setState(prev => ({ 
+        ...prev, 
+        data, 
+        filteredData: data, 
+        headers, 
+        isLoading: false 
+      }));
     } catch (err: any) {
       setState(prev => ({ 
         ...prev, 
@@ -33,6 +40,10 @@ const App: React.FC = () => {
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
+
+  const handleFilteredDataChange = (newData: PerformanceData[]) => {
+    setState(prev => ({ ...prev, filteredData: newData }));
+  };
 
   const setTab = (tab: AppTab) => {
     setState(prev => ({ ...prev, activeTab: tab }));
@@ -47,7 +58,7 @@ const App: React.FC = () => {
             <div className="absolute inset-0 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
           <p className="text-slate-600 font-black text-[9px] uppercase tracking-widest">Sincronizando BI</p>
-          <p className="text-slate-400 text-[9px] mt-1 animate-pulse uppercase font-bold tracking-tight">Extraindo colunas A:DF • Aguarde...</p>
+          <p className="text-slate-400 text-[9px] mt-1 animate-pulse uppercase font-bold tracking-tight">Conectando ao Banco de Dados Principal • Aguarde...</p>
         </div>
       </div>
     );
@@ -75,6 +86,8 @@ const App: React.FC = () => {
     );
   }
 
+  const isFiltered = state.filteredData.length < state.data.length;
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 px-6 py-3">
@@ -93,34 +106,52 @@ const App: React.FC = () => {
             <nav className="flex items-center bg-slate-100 p-1 rounded-lg">
               <button 
                 onClick={() => setTab('dashboard')}
-                className={`px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${state.activeTab === 'dashboard' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`relative px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${state.activeTab === 'dashboard' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 📊 Dashboard
+                {isFiltered && state.activeTab === 'dashboard' && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full border border-white"></span>
+                )}
               </button>
               <button 
                 onClick={() => setTab('data')}
-                className={`px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${state.activeTab === 'data' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`relative px-4 py-1.5 rounded-md text-[9px] font-black uppercase transition-all ${state.activeTab === 'data' ? 'bg-white text-[#004181] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 🗄️ Banco de Dados
+                {isFiltered && state.activeTab === 'data' && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full border border-white"></span>
+                )}
               </button>
             </nav>
           </div>
           
-          <button 
-            onClick={loadDashboardData} 
-            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-slate-200 uppercase tracking-widest"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            Sincronizar
-          </button>
+          <div className="flex items-center gap-4">
+            {isFiltered && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-orange-50 border border-orange-100 rounded-full">
+                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>
+                <span className="text-[8px] font-black text-orange-700 uppercase">Filtro Ativo no Banco</span>
+              </div>
+            )}
+            <button 
+              onClick={loadDashboardData} 
+              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-[9px] font-black hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-slate-200 uppercase tracking-widest"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Sincronizar
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="flex-grow max-w-[1800px] w-full mx-auto px-6 py-6">
         {state.activeTab === 'dashboard' ? (
-          <DashboardGeral data={state.data} headers={state.headers} />
+          <DashboardGeral data={state.filteredData} headers={state.headers} totalRecords={state.data.length} />
         ) : (
-          <DataTable headers={state.headers} data={state.data} />
+          <DataTable 
+            headers={state.headers} 
+            data={state.data} 
+            onFilterChange={handleFilteredDataChange}
+          />
         )}
       </main>
       

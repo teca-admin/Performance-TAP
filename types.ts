@@ -7,6 +7,7 @@ export type AppTab = 'dashboard' | 'data';
 
 export interface DashboardState {
   data: PerformanceData[];
+  filteredData: PerformanceData[];
   headers: string[];
   isLoading: boolean;
   error: string | null;

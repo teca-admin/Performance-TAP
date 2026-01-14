@@ -67,9 +67,9 @@ const Visuals: React.FC<VisualsProps> = ({ data, headers }) => {
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="name" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} minTickGap={30} />
-              {/* Fix: Recharts uses yAxisId instead of yId */}
+              {/* Fix: use yAxisId instead of yId */}
               <YAxis yAxisId="left" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} tickFormatter={(val) => `R$${val}`} />
-              {/* Fix: Recharts uses yAxisId instead of yId */}
+              {/* Fix: use yAxisId instead of yId */}
               <YAxis yAxisId="right" orientation="right" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
@@ -79,9 +79,9 @@ const Visuals: React.FC<VisualsProps> = ({ data, headers }) => {
                 ]}
               />
               <Legend verticalAlign="top" height={36} iconType="circle" />
-              {/* Fix: Recharts uses yAxisId instead of yId */}
+              {/* Fix: use yAxisId instead of yId */}
               <Area yAxisId="left" type="monotone" dataKey="investimento" name="investimento" stroke={COLORS.primary} fillOpacity={1} fill="url(#colorInvest)" strokeWidth={3} dot={{ r: 4, fill: COLORS.primary, stroke: '#fff' }} />
-              {/* Fix: Recharts uses yAxisId instead of yId */}
+              {/* Fix: use yAxisId instead of yId */}
               <Line yAxisId="right" type="monotone" dataKey="conversoes" name="conversoes" stroke={COLORS.secondary} strokeWidth={3} dot={{ r: 4, fill: COLORS.secondary, stroke: '#fff' }} />
             </AreaChart>
           </ResponsiveContainer>
