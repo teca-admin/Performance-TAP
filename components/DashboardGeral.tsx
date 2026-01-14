@@ -9,7 +9,8 @@ import {
   Tooltip, 
   ResponsiveContainer,
   Cell,
-  Scatter
+  Scatter,
+  LabelList
 } from 'recharts';
 
 interface DashboardGeralProps {
@@ -150,8 +151,16 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= targetEmbarque;
       const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
       
-      // Regra de Negócio: 35 bags se PAX > 107 (Load Factor > 70%)
       const isBagsOk = paxCount >= 107 ? bagsReal >= 35 : true;
+
+      // Cálculo de Eficiência Individual (Percentual Atingido x Meta)
+      const calcTimeEfficiency = (real: number, target: number) => {
+        if (real === 0 || target === 0) return 0;
+        if (real <= target) return 100;
+        return Math.max(0, 100 - (real - target)); // 1% de penalidade por minuto de atraso
+      };
+
+      const bagsEfficiency = paxCount >= 107 ? Math.min(100, (bagsReal / 35) * 100) : 100;
 
       if (isAberturaOk) confAbertura++;
       if (isFechamentoOk) confFechamento++;
@@ -170,11 +179,11 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
         pouso: row[keys.pouso],
         std: String(row[keys.std]).includes(' ') ? String(row[keys.std]).split(' ')[1] : String(row[keys.std]),
         metrics: [
-          { label: 'Abertura CKIN', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk },
-          { label: 'Fecham. CKIN', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk },
-          { label: 'Início Emb.', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk },
-          { label: 'Ult. Pax Emb.', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk },
-          { label: 'Bags Portão', real: bagsReal, target: paxCount >= 107 ? '35' : '--', ok: isBagsOk }
+          { label: 'Abertura CKIN', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk, perf: calcTimeEfficiency(checkinAbertura, targetAbertura) },
+          { label: 'Fecham. CKIN', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk, perf: calcTimeEfficiency(checkinFechamento, targetFechamento) },
+          { label: 'Início Emb.', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk, perf: calcTimeEfficiency(embarqueInicio, targetEmbarque) },
+          { label: 'Ult. Pax Emb.', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk, perf: calcTimeEfficiency(paxFinal, targetPax) },
+          { label: 'Bags Portão', real: bagsReal, target: paxCount >= 107 ? '35' : '--', ok: isBagsOk, perf: bagsEfficiency }
         ]
       };
     });
@@ -196,28 +205,25 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     };
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
 
-  // Labels curtas para o gráfico vertical com metas variáveis
-  const slaData = performance ? [
+  // Gráfico com labels de realizado
+  const slaData = useMemo(() => performance ? [
     { name: 'Abertura', fullName: 'Abertura de Check-in', realizado: parseFloat(performance.slaAbertura), meta: 98 },
     { name: 'Fechamento', fullName: 'Fechamento de Check-in', realizado: parseFloat(performance.slaFechamento), meta: 98 },
     { name: 'Embarque', fullName: 'Início do Embarque', realizado: parseFloat(performance.slaEmbarque), meta: 95 },
     { name: 'Último Pax', fullName: 'Último PAX a Bordo', realizado: parseFloat(performance.slaUltimoPax), meta: 95 },
-    { name: 'Bags Mão', fullName: 'Meta de BAGS de Mão', realizado: parseFloat(performance.slaBags), meta: 70 }, // Meta ajustada para 70% conforme solicitado
-  ] : [];
+    { name: 'Bags Mão', fullName: 'Meta de BAGS de Mão', realizado: parseFloat(performance.slaBags), meta: 70 },
+  ] : [], [performance]);
 
   const CustomTargetTick = (props: any) => {
-    const { x, y, width } = props;
-    if (x === undefined || y === undefined) return null;
+    const { x, y, width, payload } = props;
+    if (x === undefined || y === undefined || !payload) return null;
     return (
-      <line 
-        x1={x} 
-        x2={x + width} 
-        y1={y} 
-        y2={y} 
-        stroke="#1e293b" 
-        strokeWidth={3} 
-        strokeLinecap="round"
-      />
+      <g>
+        <line x1={x} x2={x + width} y1={y} y2={y} stroke="#004181" strokeWidth={2} strokeLinecap="round" strokeDasharray="3 2" />
+        <text x={x + width + 4} y={y + 3} fill="#004181" fontSize="10" fontWeight="900" className="uppercase tracking-tighter">
+          {payload.value}%
+        </text>
+      </g>
     );
   };
 
@@ -233,38 +239,20 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               <button
                 key={id}
                 onClick={() => setActiveContract(id)}
-                className={`
-                  flex items-center gap-2 px-4 py-2 rounded-lg transition-all border
-                  ${activeContract === id 
-                    ? 'bg-slate-900 border-slate-900 text-white shadow-md scale-105' 
-                    : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50'}
-                `}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all border ${activeContract === id ? 'bg-slate-900 border-slate-900 text-white shadow-md scale-105' : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50'}`}
               >
                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: groups[id].color }}></div>
                 <span className="text-[11px] font-black uppercase tracking-tight">
-                  {id === 'geral' ? '1. GERAL' : 
-                   id === 'ahl' ? '2. AHL' : 
-                   id === 'ohd' ? '3. OHD' : 
-                   id === 'rampa' ? '4. RAMPA' : 
-                   id === 'limpeza' ? '5. LIMPEZA' : '6. SAFETY'}
+                  {id === 'geral' ? '1. GERAL' : id === 'ahl' ? '2. AHL' : id === 'ohd' ? '3. OHD' : id === 'rampa' ? '4. RAMPA' : id === 'limpeza' ? '5. LIMPEZA' : '6. SAFETY'}
                 </span>
               </button>
             ))}
           </div>
-
           <div className="flex items-center gap-2 mr-2">
-            <select 
-              value={selectedMonth} 
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-black uppercase outline-none focus:ring-2 focus:ring-[#004181]/10"
-            >
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-black uppercase outline-none focus:ring-2 focus:ring-[#004181]/10">
               {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
-            <select 
-              value={selectedYear} 
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-black uppercase outline-none focus:ring-2 focus:ring-[#004181]/10"
-            >
+            <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] font-black uppercase outline-none focus:ring-2 focus:ring-[#004181]/10">
               {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
@@ -290,45 +278,25 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                   </div>
                   <div className="flex items-center gap-4">
                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-0.5 bg-slate-900 rounded-full"></div>
+                        <div className="w-3 h-0.5 bg-[#004181] rounded-full border border-white"></div>
                         <span className="text-[10px] font-black text-slate-400 uppercase">Meta Indicador</span>
                      </div>
                   </div>
                 </div>
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={slaData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
-                      <XAxis 
-                        dataKey="name" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} 
-                        interval={0}
-                      />
-                      <YAxis 
-                        domain={[0, 100]} 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
-                        tickFormatter={(v) => `${v}%`}
-                      />
-                      <Tooltip 
-                        cursor={{ fill: '#f8fafc' }} 
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} 
-                        formatter={(value: any, name: string, props: any) => {
-                          if (name === 'realizado') return [`${value}%`, 'Realizado'];
-                          if (name === 'meta') return [`${value}%`, 'Meta SLA'];
-                          return [value, name];
-                        }}
-                        labelFormatter={(label, props) => props[0]?.payload?.fullName || label}
-                      />
-                      {/* Barras de Realizado */}
+                    <BarChart data={slaData} margin={{ top: 25, right: 40, left: 0, bottom: 20 }}>
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} interval={0} />
+                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: string) => name === 'realizado' ? [`${value}%`, 'Realizado'] : [`${value}%`, 'Meta SLA']} labelFormatter={(label, props) => props[0]?.payload?.fullName || label} />
                       <Bar dataKey="realizado" barSize={40} radius={[4, 4, 0, 0]}>
-                        {slaData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.realizado >= entry.meta ? '#10b981' : '#fb394e'} />
-                        ))}
+                        <LabelList dataKey="realizado" position="top" offset={10} content={(props: any) => (
+                          <text x={props.x + props.width / 2} y={props.y - 10} fill="#64748b" fontSize="10" fontWeight="900" textAnchor="middle" className="uppercase">
+                            {props.value}%
+                          </text>
+                        )} />
+                        {slaData.map((entry, index) => <Cell key={`cell-${index}`} fill="#f1f5f9" />)}
                       </Bar>
-                      {/* Marcadores de Meta Individuais (Ticks) */}
                       <Scatter dataKey="meta" shape={<CustomTargetTick />} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -354,15 +322,12 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                   </div>
                   <div className="mt-auto p-4 bg-slate-900 rounded-lg text-white">
                     <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Resumo da Amostra</p>
-                    <p className="text-[12px] font-bold leading-tight">
-                      Foram processados {performance.totalFlights} voos de um potencial de {performance.potentialFlights} atendimentos (Seg/Qua/Sex).
-                    </p>
+                    <p className="text-[12px] font-bold leading-tight">Foram processados {performance.totalFlights} voos de um potencial de {performance.potentialFlights} atendimentos (Seg/Qua/Sex).</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* TABELA DE ATENDIMENTOS INDIVIDUAIS OTIMIZADA */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                 <div>
@@ -385,11 +350,9 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                   <thead>
                     <tr className="bg-slate-50/50 border-b border-slate-100">
                       <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase">ID Voo / STD / Data</th>
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">Abertura CKIN</th>
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">Fecham. CKIN</th>
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">Início Emb.</th>
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">Ult. Pax Emb.</th>
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">Bags Portão</th>
+                      {['Abertura CKIN', 'Fecham. CKIN', 'Início Emb.', 'Ult. Pax Emb.', 'Bags Portão'].map(h => (
+                        <th key={h} className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -407,15 +370,14 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                         {f.metrics.map((m, idx) => (
                           <td key={idx} className="px-4 py-5">
                             <div className="flex flex-col items-center justify-center group">
-                              <div className={`text-[13px] font-black leading-none mb-2 ${m.ok ? 'text-[#10b981]' : 'text-[#fb394e]'}`}>
-                                {m.real || '--'}
+                              <div className="flex items-baseline gap-1.5 mb-2">
+                                <span className={`text-[13px] font-black leading-none ${m.ok ? 'text-[#10b981]' : 'text-[#fb394e]'}`}>{m.real || '--'}</span>
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${m.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{m.perf.toFixed(0)}%</span>
                               </div>
                               <div className="w-full max-w-[70px] h-[1.5px] bg-slate-200 relative mb-2">
                                 <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-md transition-transform group-hover:scale-125 ${m.ok ? 'bg-[#10b981]' : 'bg-[#fb394e]'}`}></div>
                               </div>
-                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
-                                Meta: {m.target}
-                              </div>
+                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">Meta: {m.target}</div>
                             </div>
                           </td>
                         ))}
