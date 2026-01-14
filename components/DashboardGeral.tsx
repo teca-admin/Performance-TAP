@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { PerformanceData } from '../types';
 import StatCard from './StatCard';
@@ -7,12 +6,10 @@ import {
   Bar, 
   XAxis, 
   YAxis, 
-  CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
   Cell,
-  ReferenceLine,
-  LabelList
+  Scatter
 } from 'recharts';
 
 interface DashboardGeralProps {
@@ -140,7 +137,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const checkinFechamento = timeToMinutes(row[keys.fechamento]);
       const embarqueInicio = timeToMinutes(row[keys.embarque]);
       const paxFinal = timeToMinutes(row[keys.ultimoPax]);
-      const bagsMeta = Number(row[keys.metaBags]) || 0;
+      const paxCount = Number(row[keys.pax]) || 0;
       const bagsReal = Number(row[keys.bagsAtendidas]) || 0;
 
       const targetAbertura = stdMin - 210;
@@ -152,7 +149,9 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const isFechamentoOk = row[keys.fechamento] && stdMin > 0 && checkinFechamento <= targetFechamento;
       const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= targetEmbarque;
       const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
-      const isBagsOk = bagsMeta > 0 && bagsReal >= bagsMeta;
+      
+      // Regra de Negócio: 35 bags se PAX > 107 (Load Factor > 70%)
+      const isBagsOk = paxCount >= 107 ? bagsReal >= 35 : true;
 
       if (isAberturaOk) confAbertura++;
       if (isFechamentoOk) confFechamento++;
@@ -160,7 +159,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       if (isUltimoPaxOk) confUltimoPax++;
       if (isBagsOk) confBags++;
 
-      totalPax += Number(row[keys.pax]) || 0;
+      totalPax += paxCount;
       sumOrbital += parseFloat(String(row[keys.orbital]).replace('%', '')) || 0;
       sumBase += parseFloat(String(row[keys.base]).replace('%', '')) || 0;
       sumCheckinTime += parseFloat(String(row[keys.checkinTime])) || 0;
@@ -175,7 +174,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
           { label: 'Fecham. CKIN', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk },
           { label: 'Início Emb.', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk },
           { label: 'Ult. Pax Emb.', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk },
-          { label: 'Bags Portão', real: bagsReal, target: bagsMeta, ok: isBagsOk }
+          { label: 'Bags Portão', real: bagsReal, target: paxCount >= 107 ? '35' : '--', ok: isBagsOk }
         ]
       };
     });
@@ -197,7 +196,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     };
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
 
-  // Labels curtas para o gráfico vertical
+  // Labels curtas para o gráfico vertical com metas variáveis
   const slaData = performance ? [
     { name: 'Abertura', fullName: 'Abertura de Check-in', realizado: parseFloat(performance.slaAbertura), meta: 98 },
     { name: 'Fechamento', fullName: 'Fechamento de Check-in', realizado: parseFloat(performance.slaFechamento), meta: 98 },
@@ -205,6 +204,22 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     { name: 'Último Pax', fullName: 'Último PAX a Bordo', realizado: parseFloat(performance.slaUltimoPax), meta: 95 },
     { name: 'Bags Mão', fullName: 'Meta de BAGS de Mão', realizado: parseFloat(performance.slaBags), meta: 95 },
   ] : [];
+
+  const CustomTargetTick = (props: any) => {
+    const { x, y, width } = props;
+    if (x === undefined || y === undefined) return null;
+    return (
+      <line 
+        x1={x} 
+        x2={x + width} 
+        y1={y} 
+        y2={y} 
+        stroke="#1e293b" 
+        strokeWidth={3} 
+        strokeLinecap="round"
+      />
+    );
+  };
 
   const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -271,13 +286,18 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight">Consolidado Mensal: SLA Operacional</h3>
-                    <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">Comparativo de Realizado vs Meta (98% / 95%)</p>
+                    <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">Realizado vs Marcadores de Meta (Individualizados)</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                     <div className="flex items-center gap-2">
+                        <div className="w-3 h-0.5 bg-slate-900 rounded-full"></div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase">Meta Indicador</span>
+                     </div>
                   </div>
                 </div>
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={slaData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis 
                         dataKey="name" 
                         axisLine={false} 
@@ -295,17 +315,21 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                       <Tooltip 
                         cursor={{ fill: '#f8fafc' }} 
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} 
-                        formatter={(value: any, name: string, props: any) => [`${value}%`, 'Realizado']}
+                        formatter={(value: any, name: string, props: any) => {
+                          if (name === 'realizado') return [`${value}%`, 'Realizado'];
+                          if (name === 'meta') return [`${value}%`, 'Meta SLA'];
+                          return [value, name];
+                        }}
                         labelFormatter={(label, props) => props[0]?.payload?.fullName || label}
                       />
-                      <ReferenceLine y={95} stroke="#cbd5e1" strokeDasharray="5 5" label={{ position: 'right', value: '95%', fill: '#94a3b8', fontSize: 9, fontWeight: 900 }} />
-                      <ReferenceLine y={98} stroke="#004181" strokeDasharray="5 5" label={{ position: 'right', value: '98%', fill: '#004181', fontSize: 9, fontWeight: 900 }} />
+                      {/* Barras de Realizado */}
                       <Bar dataKey="realizado" barSize={40} radius={[4, 4, 0, 0]}>
                         {slaData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.realizado >= entry.meta ? '#10b981' : '#fb394e'} />
                         ))}
-                        <LabelList dataKey="realizado" position="top" formatter={(v: number) => `${v}%`} style={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }} />
                       </Bar>
+                      {/* Marcadores de Meta Individuais (Ticks) */}
+                      <Scatter dataKey="meta" shape={<CustomTargetTick />} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
