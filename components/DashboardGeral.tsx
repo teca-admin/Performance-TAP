@@ -199,7 +199,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers }) => {
         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Análise de SLA Contratual</h3>
+              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Análise do SLA</h3>
               <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Percentual de Conformidade (Médias do Mês)</p>
             </div>
             <div className="flex gap-4">
