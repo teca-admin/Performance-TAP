@@ -35,34 +35,36 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     return new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
   };
 
+  const minutesToTime = (totalMinutes: number): string => {
+    if (totalMinutes < 0) return "00:00";
+    const hours = Math.floor(totalMinutes / 60) % 24;
+    const mins = totalMinutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  };
+
   // Identificar dinamicamente os anos disponíveis no banco de dados
   const availableYears = useMemo(() => {
     const years = new Set<number>();
-    const pousoHeader = headers[1]; // Coluna 1: Horário de Pouso
+    const pousoHeader = headers[1]; 
     
     data.forEach(row => {
       const d = parseSheetDate(row[pousoHeader]);
       if (d) years.add(d.getFullYear());
     });
     
-    // Fallback caso não consiga ler (padrão solicitado pelo usuário)
     if (years.size === 0) return [2025, 2026];
-    
     return Array.from(years).sort((a, b) => a - b);
   }, [data, headers]);
 
-  // Estados para filtros temporais (inicializa com o mês atual e o primeiro ano disponível)
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(availableYears.includes(new Date().getFullYear()) ? new Date().getFullYear() : availableYears[0]);
 
-  // Sincroniza o ano selecionado se os anos disponíveis mudarem drasticamente
   useEffect(() => {
     if (!availableYears.includes(selectedYear)) {
       setSelectedYear(availableYears[0]);
     }
   }, [availableYears]);
 
-  // --- DEFINIÇÃO DOS GRUPOS (SLICING) ---
   const groups = {
     geral: { start: 0, count: 14, color: '#004181' },
     ahl: { start: 14, count: 3, color: '#0c343d' },
@@ -140,10 +142,15 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const bagsMeta = Number(row[keys.metaBags]) || 0;
       const bagsReal = Number(row[keys.bagsAtendidas]) || 0;
 
-      const isAberturaOk = row[keys.abertura] && stdMin > 0 && checkinAbertura <= (stdMin - 210);
-      const isFechamentoOk = row[keys.fechamento] && stdMin > 0 && checkinFechamento <= (stdMin - 60);
-      const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= (stdMin - 40);
-      const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= (stdMin - 10);
+      const targetAbertura = stdMin - 210;
+      const targetFechamento = stdMin - 60;
+      const targetEmbarque = stdMin - 40;
+      const targetPax = stdMin - 10;
+
+      const isAberturaOk = row[keys.abertura] && stdMin > 0 && checkinAbertura <= targetAbertura;
+      const isFechamentoOk = row[keys.fechamento] && stdMin > 0 && checkinFechamento <= targetFechamento;
+      const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= targetEmbarque;
+      const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
       const isBagsOk = bagsMeta > 0 && bagsReal >= bagsMeta;
 
       if (isAberturaOk) confAbertura++;
@@ -161,11 +168,14 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       return {
         id: row[keys.id],
         pouso: row[keys.pouso],
-        abertura: isAberturaOk,
-        fechamento: isFechamentoOk,
-        embarque: isEmbarqueOk,
-        pax: isUltimoPaxOk,
-        bags: isBagsOk
+        std: String(row[keys.std]).includes(' ') ? String(row[keys.std]).split(' ')[1] : String(row[keys.std]),
+        metrics: [
+          { label: 'Abertura CKIN', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk },
+          { label: 'Fecham. CKIN', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk },
+          { label: 'Início Emb.', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk },
+          { label: 'Ult. Pax Emb.', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk },
+          { label: 'Bags Portão', real: bagsReal, target: bagsMeta, ok: isBagsOk }
+        ]
       };
     });
 
@@ -198,7 +208,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* SELETOR DE CONTRATOS E FILTROS */}
       <div className="flex flex-col gap-4">
         <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-2 items-center justify-between">
           <div className="flex flex-wrap gap-2 items-center">
@@ -249,26 +258,10 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
         performance ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard 
-                title="Voos Realizados / Potencial" 
-                value={`${performance.totalFlights} / ${performance.potentialFlights}`} 
-                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
-              />
-              <StatCard 
-                title="Total PAX" 
-                value={performance.totalPax.toLocaleString()} 
-                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>}
-              />
-              <StatCard 
-                title="Pontualidade Orbital" 
-                value={`${performance.avgOrbital}%`} 
-                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-              />
-              <StatCard 
-                title="Pontualidade Base" 
-                value={`${performance.avgBase}%`} 
-                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-              />
+              <StatCard title="Voos Realizados / Potencial" value={`${performance.totalFlights} / ${performance.potentialFlights}`} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>} />
+              <StatCard title="Total PAX" value={performance.totalPax.toLocaleString()} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
+              <StatCard title="Pontualidade Orbital" value={`${performance.avgOrbital}%`} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
+              <StatCard title="Pontualidade Base" value={`${performance.avgBase}%`} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -284,19 +277,8 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                     <BarChart data={slaData} layout="vertical" margin={{ top: 10, right: 60, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                       <XAxis type="number" domain={[0, 100]} hide />
-                      <YAxis 
-                        dataKey="name" 
-                        type="category" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        width={140}
-                        tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }}
-                      />
-                      <Tooltip 
-                        cursor={{ fill: '#f8fafc' }}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '9px', fontWeight: 'bold' }}
-                        formatter={(value: any) => [`${value}%`, 'Realizado']}
-                      />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={140} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '9px', fontWeight: 'bold' }} formatter={(value: any) => [`${value}%`, 'Realizado']} />
                       <Bar dataKey="realizado" radius={[0, 4, 4, 0]} barSize={24}>
                         {slaData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.realizado >= entry.meta ? '#10b981' : '#fb394e'} />
@@ -336,20 +318,21 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               </div>
             </div>
 
+            {/* TABELA DE ATENDIMENTOS INDIVIDUAIS COM DETALHES DE MÉTRICA */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Atendimentos Individuais</h3>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Status de Conformidade por Voo</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Métricas de Realizado vs Meta (Limite) por Voo</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-[#10b981]"></div>
-                    <span className="text-[8px] font-black text-slate-500 uppercase">Conforme</span>
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">Conforme</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-[#fb394e]"></div>
-                    <span className="text-[8px] font-black text-slate-500 uppercase">Não Conforme</span>
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">Não Conforme</span>
                   </div>
                 </div>
               </div>
@@ -357,7 +340,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="px-6 py-3 text-[9px] font-black text-slate-500 uppercase">ID Voo / Data</th>
+                      <th className="px-6 py-3 text-[9px] font-black text-slate-500 uppercase">ID Voo / STD</th>
                       <th className="px-4 py-3 text-[9px] font-black text-slate-500 uppercase text-center">Abertura CKIN</th>
                       <th className="px-4 py-3 text-[9px] font-black text-slate-500 uppercase text-center">Fecham. CKIN</th>
                       <th className="px-4 py-3 text-[9px] font-black text-slate-500 uppercase text-center">Início Emb.</th>
@@ -368,22 +351,25 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                   <tbody className="divide-y divide-slate-50">
                     {performance.flightDetails.map((f, i) => (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-3">
+                        <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="text-[10px] font-black text-slate-800">{f.id}</span>
-                            <span className="text-[8px] font-bold text-slate-400 uppercase">{f.pouso}</span>
+                            <span className="text-[10px] font-black text-slate-800 leading-tight">{f.id}</span>
+                            <span className="text-[8px] font-bold text-[#004181] uppercase mt-0.5">STD: {f.std}</span>
+                            <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">{f.pouso}</span>
                           </div>
                         </td>
-                        {[f.abertura, f.fechamento, f.embarque, f.pax, f.bags].map((status, idx) => (
-                          <td key={idx} className="px-4 py-3 text-center">
-                            <div className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${status ? 'bg-[#10b981]' : 'bg-[#fb394e]'} shadow-sm`}>
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                {status ? (
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                ) : (
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
-                                )}
-                              </svg>
+                        {f.metrics.map((m, idx) => (
+                          <td key={idx} className="px-4 py-4">
+                            <div className="flex flex-col items-center justify-center">
+                              <div className={`text-[9px] font-black leading-none ${m.ok ? 'text-[#10b981]' : 'text-[#fb394e]'}`}>
+                                {m.real || '--'}
+                              </div>
+                              <div className="w-full max-w-[60px] h-[1px] bg-slate-200 my-1.5 relative">
+                                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full border border-white shadow-sm ${m.ok ? 'bg-[#10b981]' : 'bg-[#fb394e]'}`}></div>
+                              </div>
+                              <div className="text-[7px] font-black text-slate-400 uppercase tracking-tighter leading-none">
+                                Meta: {m.target}
+                              </div>
                             </div>
                           </td>
                         ))}
@@ -397,9 +383,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 p-20 flex flex-col items-center justify-center text-center">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-6 text-slate-300">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             </div>
             <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-2">Sem Dados Disponíveis</h3>
             <p className="text-[9px] text-slate-400 font-bold uppercase max-w-sm">Não encontramos registros para {months[selectedMonth]} de {selectedYear}.</p>
@@ -408,26 +392,15 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 p-12 flex flex-col items-center justify-center text-center">
           <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-6" style={{ color: groups[activeContract].color }}>
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
           </div>
-          <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-2">
-            BI Segmentado: {activeContract.toUpperCase()}
-          </h3>
-          <p className="text-[9px] text-slate-400 font-bold uppercase max-w-sm leading-relaxed mb-6">
-            Módulo de indicadores em desenvolvimento. <br/>
-            Este segmento monitora as seguintes colunas da base:
-          </p>
-          
+          <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-2">BI Segmentado: {activeContract.toUpperCase()}</h3>
+          <p className="text-[9px] text-slate-400 font-bold uppercase max-w-sm leading-relaxed mb-6">Módulo de indicadores em desenvolvimento. <br/> Este segmento monitora as seguintes colunas da base:</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 w-full max-w-2xl">
             {contractHeaders.map((h, i) => (
-              <div key={i} className="px-3 py-2 bg-slate-50 border border-slate-100 rounded text-[8px] font-black text-slate-600 uppercase truncate" title={h}>
-                {h}
-              </div>
+              <div key={i} className="px-3 py-2 bg-slate-50 border border-slate-100 rounded text-[8px] font-black text-slate-600 uppercase truncate" title={h}>{h}</div>
             ))}
           </div>
-          
           <div className="mt-10 flex items-center gap-2">
             <div className="w-1 h-1 rounded-full bg-slate-300 animate-pulse"></div>
             <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Aguardando definição de KPIs</span>
