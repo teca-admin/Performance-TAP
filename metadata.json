@@ -1,0 +1,5 @@
+{
+  "name": "Performance TAP",
+  "description": "A high-performance dashboard that extracts data from Google Sheets and uses Gemini AI to provide strategic insights into marketing and sales metrics.",
+  "requestFramePermissions": []
+}
