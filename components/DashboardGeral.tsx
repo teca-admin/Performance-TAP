@@ -230,7 +230,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     if (!filteredByDate.length || activeContract !== 'geral') return null;
     const potentialCount = getPotentialFlightsCount(selectedMonth, selectedYear);
     const flightsCount = filteredByDate.length;
-    let totalPax = 0, sumOrbital = 0, sumBase = 0;
+    let totalPax = 0, sumOrbital = 0, sumBase = 0, totalBags = 0;
     let sumPerfAbertura = 0, sumPerfFechamento = 0, sumPerfEmbarque = 0, sumPerfUltimoPax = 0, sumPerfBags = 0;
     let flightsWith100SlaCount = 0;
 
@@ -250,6 +250,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
 
       const paxCount = parseBrazilianNumber(row[keys.pax]);
       const bagsRealValue = parseBrazilianNumber(row[keys.bagsAtendidas]);
+      totalBags += bagsRealValue;
 
       // Cálculos de Fluxo (em minutos)
       const cicloTotal = lastPaxMin - checkinAbertura;
@@ -333,6 +334,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       flightsWith100Sla: flightsWith100SlaCount,
       flightsBelowSla: flightsCount - flightsWith100SlaCount,
       totalPax,
+      totalBags,
       avgOrbital: (sumOrbital / flightsCount).toFixed(1),
       avgBase: (sumBase / flightsCount).toFixed(1),
       slaAbertura: (sumPerfAbertura / flightsCount).toFixed(1),
@@ -640,11 +642,13 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                      </div>
                   </div>
                 </div>
-                <div className="h-[350px] outline-none" style={{ outline: 'none' }} tabIndex={-1}>
+                
+                {/* GRÁFICO PRINCIPAL COM MARGENS CONTROLADAS E EIXO Y OCULTO */}
+                <div className="h-[300px] outline-none" style={{ outline: 'none' }} tabIndex={-1}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={slaData} margin={{ top: 25, right: 40, left: 0, bottom: 20 }}>
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }} interval={0} />
-                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} tickFormatter={(v) => `${v}%`} />
+                    <BarChart data={slaData} margin={{ top: 25, right: 0, left: 0, bottom: 0 }}>
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 900, fill: '#64748b' }} interval={0} />
+                      <YAxis hide={true} domain={[0, 100]} />
                       <Tooltip 
                         cursor={{ fill: '#f8fafc' }} 
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', fontSize: '11px', fontWeight: 'bold', padding: '12px' }} 
@@ -667,6 +671,31 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                       <Scatter dataKey="meta" shape={<CustomTargetTick />} />
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+
+                {/* TABELA DE GAP ANALYSIS - ALINHADA PERFEITAMENTE COM AS BARRAS ATRAVÉS DE GRID */}
+                <div className="mt-8 border-t border-slate-50 pt-6 grid grid-cols-5">
+                  {slaData.map((item, idx) => {
+                    const gap = (item.realizado - item.meta).toFixed(1);
+                    const isPositive = parseFloat(gap) >= 0;
+                    return (
+                      <div key={idx} className="flex flex-col items-center text-center px-1">
+                        <span className="text-[10.5px] font-black text-slate-300 uppercase tracking-widest mb-2 whitespace-nowrap">Gap de Meta</span>
+                        <div className={`px-2 py-1.5 rounded flex items-center gap-1 mb-2 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                          <span className="text-[14px] font-black">{isPositive ? '+' : ''}{gap}%</span>
+                          {isPositive ? (
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                          ) : (
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                           <span className="text-[12px] font-black text-slate-800 uppercase tracking-tighter whitespace-nowrap">Real: {item.realizado}%</span>
+                           <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-tighter whitespace-nowrap">Meta: {item.meta}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -713,7 +742,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                     </div>
                   </div>
 
-                  {/* NOVOS INDICADORES NO ESPAÇO VAZIO */}
+                  {/* NOVOS INDICADORES OPERACIONAIS NO ESPAÇO VAZIO */}
                   <div className="grid grid-cols-1 gap-3 pt-2">
                     <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -725,24 +754,14 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                       <span className="text-[15px] font-black text-slate-900">{performance.totalPax.toLocaleString('pt-BR')} <small className="text-[8px] opacity-40">PAX</small></span>
                     </div>
 
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-7 h-7 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                         </div>
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Pontualidade Estratégica</span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Total de BAGS Coletadas</span>
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex flex-col flex-1">
-                          <span className="text-[14px] font-black text-[#004181]">{performance.avgOrbital}%</span>
-                          <span className="text-[8px] font-bold text-slate-400 uppercase">Média Orbital</span>
-                        </div>
-                        <div className="w-px h-6 bg-slate-200"></div>
-                        <div className="flex flex-col flex-1 text-right">
-                          <span className="text-[14px] font-black text-emerald-600">{performance.avgBase}%</span>
-                          <span className="text-[8px] font-bold text-slate-400 uppercase">Média Base</span>
-                        </div>
-                      </div>
+                      <span className="text-[15px] font-black text-slate-900">{performance.totalBags.toLocaleString('pt-BR')} <small className="text-[8px] opacity-40">BAGS</small></span>
                     </div>
                   </div>
 
