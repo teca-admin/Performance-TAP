@@ -30,6 +30,13 @@ interface MetricMeta {
   description: string;
 }
 
+interface FluxMetricMeta {
+  name: string;
+  formula: string;
+  description: string;
+  importance: string;
+}
+
 interface FlightAudit {
   flightId: string;
   metricName: string;
@@ -48,6 +55,7 @@ interface FlightAudit {
 const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRecords }) => {
   const [activeContract, setActiveContract] = useState<ContractType>('geral');
   const [selectedMetric, setSelectedMetric] = useState<MetricMeta | null>(null);
+  const [selectedFluxMetric, setSelectedFluxMetric] = useState<FluxMetricMeta | null>(null);
   const [selectedFlightAudit, setSelectedFlightAudit] = useState<FlightAudit | null>(null);
   const [flightListFilter, setFlightListFilter] = useState<FlightFilterType>('all');
   
@@ -65,6 +73,13 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     if (totalMinutes < 0) return "00:00";
     const hours = Math.floor(totalMinutes / 60) % 24;
     const mins = totalMinutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  };
+
+  const formatDuration = (totalMinutes: number): string => {
+    if (totalMinutes <= 0) return "00:00";
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = Math.round(totalMinutes % 60);
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   };
 
@@ -169,6 +184,27 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       rule: 'Se PAX >= 107, meta 35 bolsas. Caso < 107, isento (100%).',
       target: 'Min. 35 unidades (se ocupação alta).',
       description: 'Gestão de espaço em cabine e agilidade.'
+    }
+  };
+
+  const fluxMetaInfo: Record<string, FluxMetricMeta> = {
+    'Ciclo Atendimento': {
+      name: 'Ciclo Atendimento',
+      formula: 'Último PAX a bordo - Abertura de Check-in',
+      description: 'Mede o tempo total de processamento dos passageiros desde o início do atendimento no balcão até o fechamento da aeronave.',
+      importance: 'Essencial para dimensionar a produtividade da equipe de terra e garantir que o fluxo de passageiros não cause atrasos no STD.'
+    },
+    'Eficiência de Embarque': {
+      name: 'Eficiência de Embarque',
+      formula: 'Último PAX a bordo - Início do Embarque',
+      description: 'Mede o tempo líquido gasto para embarcar todos os passageiros no portão de embarque.',
+      importance: 'Indicador direto de quão rápido a equipe de portão consegue processar a fila e acomodar os passageiros na cabine.'
+    },
+    'Eficiência Operacional': {
+      name: 'Eficiência Operacional',
+      formula: 'Horário de Pushback - Horário de Pouso',
+      description: 'Mede o turnaround completo da aeronave em solo (tempo de permanência entre a chegada e a partida).',
+      importance: 'Reflete a coordenação entre todas as áreas (Rampa, Limpeza, Catering e Tráfego) para liberar a aeronave no menor tempo possível.'
     }
   };
 
@@ -284,7 +320,10 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
         pouso: row[keys.pouso],
         std: String(row[keys.std]).includes(' ') ? String(row[keys.std]).split(' ')[1] : String(row[keys.std]),
         metrics,
-        isPerfect
+        isPerfect,
+        cicloTotal: formatDuration(cicloTotal),
+        eficienciaPortao: formatDuration(eficienciaPortao),
+        eficienciaSolo: formatDuration(eficienciaSolo)
       };
     });
 
@@ -301,10 +340,10 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       slaEmbarque: (sumPerfEmbarque / flightsCount).toFixed(1),
       slaUltimoPax: (sumPerfUltimoPax / flightsCount).toFixed(1),
       slaBags: (sumPerfBags / flightsCount).toFixed(1),
-      // Cálculo das médias solicitadas
-      avgCicloTotal: countCiclo > 0 ? (sumCicloTotal / countCiclo).toFixed(0) : "0",
-      avgEficienciaPortao: countPortao > 0 ? (sumEficienciaPortao / countPortao).toFixed(0) : "0",
-      avgEficienciaSolo: countSolo > 0 ? (sumEficienciaSolo / countSolo).toFixed(0) : "0",
+      // Formatação das médias em hh:mm
+      avgCicloTotal: countCiclo > 0 ? formatDuration(sumCicloTotal / countCiclo) : "00:00",
+      avgEficienciaPortao: countPortao > 0 ? formatDuration(sumEficienciaPortao / countPortao) : "00:00",
+      avgEficienciaSolo: countSolo > 0 ? formatDuration(sumEficienciaSolo / countSolo) : "00:00",
       flightDetails
     };
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
@@ -358,6 +397,42 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
 
   return (
     <div className="space-y-6 animate-fade-in relative">
+      {/* MODAL DE EXPLICAÇÃO DE FLUXO */}
+      {selectedFluxMetric && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={() => setSelectedFluxMetric(null)}>
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform animate-scale-in" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#004181] p-6 text-white flex justify-between items-center">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70 mb-1">Dicionário de Métricas de Fluxo</p>
+                <h3 className="text-lg font-black uppercase">{selectedFluxMetric.name}</h3>
+              </div>
+              <button onClick={() => setSelectedFluxMetric(null)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div>
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">O que é?</h4>
+                <p className="text-[13px] font-bold text-slate-700 leading-relaxed">{selectedFluxMetric.description}</p>
+              </div>
+              <div>
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Fórmula de Cálculo</h4>
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                  <p className="text-[12px] font-black text-[#004181] font-mono">{selectedFluxMetric.formula}</p>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Importância Estratégica</h4>
+                <p className="text-[12px] font-bold text-slate-600 leading-relaxed italic">"{selectedFluxMetric.importance}"</p>
+              </div>
+            </div>
+            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setSelectedFluxMetric(null)} className="px-8 py-2 bg-slate-900 text-white text-[10px] font-black rounded-lg uppercase tracking-widest hover:bg-black transition-all">Entendido</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE AUDITORIA DE MÉTRICAS GERAIS (CABEÇALHO) */}
       {selectedMetric && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-md animate-fade-in" onClick={() => setSelectedMetric(null)}>
@@ -403,7 +478,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
         </div>
       )}
 
-      {/* MODAL DE AUDITORIA DE VOO (DRILL-DOWN) */}
       {selectedFlightAudit && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={() => setSelectedFlightAudit(null)}>
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform animate-scale-in" onClick={e => e.stopPropagation()}>
@@ -590,25 +664,43 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
                 <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight mb-6">Métricas de Fluxo do Mês</h3>
                 <div className="space-y-4 flex-grow">
-                  <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-[#004181]">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Média: Ciclo Atendimento Cliente</p>
+                  <div 
+                    onClick={() => setSelectedFluxMetric(fluxMetaInfo['Ciclo Atendimento'])}
+                    className="p-3 bg-slate-50 rounded-lg border-l-4 border-[#004181] cursor-pointer hover:bg-blue-50/50 hover:scale-[1.02] transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[9px] font-black text-slate-400 uppercase group-hover:text-[#004181]">Média: Ciclo Atendimento</p>
+                      <svg className="w-3 h-3 text-slate-300 group-hover:text-[#004181]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-800">{performance.avgCicloTotal}</span>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Horas</span>
                     </div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-cyan-400">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Média: Eficiência de Embarque</p>
+                  <div 
+                    onClick={() => setSelectedFluxMetric(fluxMetaInfo['Eficiência de Embarque'])}
+                    className="p-3 bg-slate-50 rounded-lg border-l-4 border-cyan-400 cursor-pointer hover:bg-cyan-50/50 hover:scale-[1.02] transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[9px] font-black text-slate-400 uppercase group-hover:text-cyan-600">Média: Eficiência de Embarque</p>
+                      <svg className="w-3 h-3 text-slate-300 group-hover:text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-800">{performance.avgEficienciaPortao}</span>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Horas</span>
                     </div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-emerald-400">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Média: Eficiência Operacional</p>
+                  <div 
+                    onClick={() => setSelectedFluxMetric(fluxMetaInfo['Eficiência Operacional'])}
+                    className="p-3 bg-slate-50 rounded-lg border-l-4 border-emerald-400 cursor-pointer hover:bg-emerald-50/50 hover:scale-[1.02] transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[9px] font-black text-slate-400 uppercase group-hover:text-emerald-600">Média: Eficiência Operacional</p>
+                      <svg className="w-3 h-3 text-slate-300 group-hover:text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-800">{performance.avgEficienciaSolo}</span>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Horas</span>
                     </div>
                   </div>
                   <div className="mt-auto p-4 bg-slate-900 rounded-lg text-white">
@@ -664,6 +756,16 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                           </div>
                         </th>
                       ))}
+                      {/* NOVOS CABEÇALHOS DE FLUXO */}
+                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-blue-50/30">
+                        Ciclo Total
+                      </th>
+                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-cyan-50/30">
+                        Efic. Portão
+                      </th>
+                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-emerald-50/30">
+                        Efic. Solo
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -695,6 +797,25 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                             </div>
                           </td>
                         ))}
+                        {/* NOVOS DADOS DE FLUXO POR VOO */}
+                        <td className="px-4 py-5 text-center bg-blue-50/10">
+                           <div className="flex flex-col items-center">
+                             <span className="text-[13px] font-black text-slate-700">{f.cicloTotal}</span>
+                             <span className="text-[8px] font-black text-slate-400 uppercase">HH:MM</span>
+                           </div>
+                        </td>
+                        <td className="px-4 py-5 text-center bg-cyan-50/10">
+                           <div className="flex flex-col items-center">
+                             <span className="text-[13px] font-black text-slate-700">{f.eficienciaPortao}</span>
+                             <span className="text-[8px] font-black text-slate-400 uppercase">HH:MM</span>
+                           </div>
+                        </td>
+                        <td className="px-4 py-5 text-center bg-emerald-50/10">
+                           <div className="flex flex-col items-center">
+                             <span className="text-[13px] font-black text-slate-700">{f.eficienciaSolo}</span>
+                             <span className="text-[8px] font-black text-slate-400 uppercase">HH:MM</span>
+                           </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
