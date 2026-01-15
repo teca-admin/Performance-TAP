@@ -623,7 +623,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 outline-none focus:outline-none focus:ring-0">
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight">Consolidado Mensal: Média de Performance</h3>
@@ -636,7 +636,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                      </div>
                   </div>
                 </div>
-                <div className="h-[350px]">
+                <div className="h-[350px] outline-none">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={slaData} margin={{ top: 25, right: 40, left: 0, bottom: 20 }}>
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }} interval={0} />
@@ -756,24 +756,24 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                           </div>
                         </th>
                       ))}
-                      {/* NOVOS CABEÇALHOS DE FLUXO INTERATIVOS */}
+                      {/* NOVOS CABEÇALHOS DE FLUXO INTERATIVOS COM NOMES ATUALIZADOS */}
                       <th 
                         className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-blue-50/30 cursor-help hover:bg-blue-100 transition-colors"
                         onClick={() => setSelectedFluxMetric(fluxMetaInfo['Ciclo Atendimento'])}
                       >
-                        Ciclo Total
+                        Ciclo Atendimento
                       </th>
                       <th 
                         className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-cyan-50/30 cursor-help hover:bg-cyan-100 transition-colors"
                         onClick={() => setSelectedFluxMetric(fluxMetaInfo['Eficiência de Embarque'])}
                       >
-                        Efic. Portão
+                        Eficiência de Embarque
                       </th>
                       <th 
                         className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-emerald-50/30 cursor-help hover:bg-emerald-100 transition-colors"
                         onClick={() => setSelectedFluxMetric(fluxMetaInfo['Eficiência Operacional'])}
                       >
-                        Efic. Solo
+                        Eficiência Operacional
                       </th>
                     </tr>
                   </thead>
