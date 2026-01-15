@@ -756,14 +756,23 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                           </div>
                         </th>
                       ))}
-                      {/* NOVOS CABEÇALHOS DE FLUXO */}
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-blue-50/30">
+                      {/* NOVOS CABEÇALHOS DE FLUXO INTERATIVOS */}
+                      <th 
+                        className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-blue-50/30 cursor-help hover:bg-blue-100 transition-colors"
+                        onClick={() => setSelectedFluxMetric(fluxMetaInfo['Ciclo Atendimento'])}
+                      >
                         Ciclo Total
                       </th>
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-cyan-50/30">
+                      <th 
+                        className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-cyan-50/30 cursor-help hover:bg-cyan-100 transition-colors"
+                        onClick={() => setSelectedFluxMetric(fluxMetaInfo['Eficiência de Embarque'])}
+                      >
                         Efic. Portão
                       </th>
-                      <th className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-emerald-50/30">
+                      <th 
+                        className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center bg-emerald-50/30 cursor-help hover:bg-emerald-100 transition-colors"
+                        onClick={() => setSelectedFluxMetric(fluxMetaInfo['Eficiência Operacional'])}
+                      >
                         Efic. Solo
                       </th>
                     </tr>
