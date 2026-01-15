@@ -623,7 +623,11 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 outline-none focus:outline-none focus:ring-0">
+              <div 
+                className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100 select-none outline-none" 
+                style={{ outline: 'none' }}
+                tabIndex={-1}
+              >
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight">Consolidado Mensal: Média de Performance</h3>
@@ -636,12 +640,17 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                      </div>
                   </div>
                 </div>
-                <div className="h-[350px] outline-none">
+                <div className="h-[350px] outline-none" style={{ outline: 'none' }} tabIndex={-1}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={slaData} margin={{ top: 25, right: 40, left: 0, bottom: 20 }}>
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }} interval={0} />
                       <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} tickFormatter={(v) => `${v}%`} />
-                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: string) => name === 'realizado' ? [`${value}%`, 'Média Realizada'] : [`${value}%`, 'Meta SLA']} labelFormatter={(label, props) => props[0]?.payload?.fullName || label} />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }} 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', fontSize: '11px', fontWeight: 'bold', padding: '12px' }} 
+                        formatter={(value: any, name: string) => name === 'realizado' ? [`${value}%`, 'Média Realizada'] : [`${value}%`, 'Meta SLA']} 
+                        labelFormatter={(label, props) => props[0]?.payload?.fullName || label} 
+                      />
                       <Bar dataKey="realizado" barSize={40} radius={[4, 4, 0, 0]}>
                         <LabelList dataKey="realizado" position="top" offset={10} content={(props: any) => (
                           <text x={props.x + props.width / 2} y={props.y - 10} fill="#64748b" fontSize="10" fontWeight="900" textAnchor="middle" className="uppercase">
