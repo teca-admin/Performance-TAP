@@ -129,8 +129,11 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     if (!filteredByDate.length || activeContract !== 'geral') return null;
 
     const potentialCount = getPotentialFlightsCount(selectedMonth, selectedYear);
+    const flightsCount = filteredByDate.length;
     let totalPax = 0, sumOrbital = 0, sumBase = 0, sumCheckinTime = 0, sumQueueTime = 0;
-    let confAbertura = 0, confFechamento = 0, confEmbarque = 0, confUltimoPax = 0, confBags = 0;
+    
+    // Acumuladores para as médias de performance
+    let sumPerfAbertura = 0, sumPerfFechamento = 0, sumPerfEmbarque = 0, sumPerfUltimoPax = 0, sumPerfBags = 0;
 
     const flightDetails = filteredByDate.map(row => {
       const stdMin = timeToMinutes(row[keys.std]);
@@ -150,23 +153,26 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const isFechamentoOk = row[keys.fechamento] && stdMin > 0 && checkinFechamento <= targetFechamento;
       const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= targetEmbarque;
       const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
-      
       const isBagsOk = paxCount >= 107 ? bagsReal >= 35 : true;
 
       // Cálculo de Eficiência Individual (Percentual Atingido x Meta)
       const calcTimeEfficiency = (real: number, target: number) => {
         if (real === 0 || target === 0) return 0;
         if (real <= target) return 100;
-        return Math.max(0, 100 - (real - target)); // 1% de penalidade por minuto de atraso
+        return Math.max(0, 100 - (real - target)); 
       };
 
-      const bagsEfficiency = paxCount >= 107 ? Math.min(100, (bagsReal / 35) * 100) : 100;
+      const perfAbertura = calcTimeEfficiency(checkinAbertura, targetAbertura);
+      const perfFechamento = calcTimeEfficiency(checkinFechamento, targetFechamento);
+      const perfEmbarque = calcTimeEfficiency(embarqueInicio, targetEmbarque);
+      const perfUltimoPax = calcTimeEfficiency(paxFinal, targetPax);
+      const perfBags = paxCount >= 107 ? Math.min(100, (bagsReal / 35) * 100) : 100;
 
-      if (isAberturaOk) confAbertura++;
-      if (isFechamentoOk) confFechamento++;
-      if (isEmbarqueOk) confEmbarque++;
-      if (isUltimoPaxOk) confUltimoPax++;
-      if (isBagsOk) confBags++;
+      sumPerfAbertura += perfAbertura;
+      sumPerfFechamento += perfFechamento;
+      sumPerfEmbarque += perfEmbarque;
+      sumPerfUltimoPax += perfUltimoPax;
+      sumPerfBags += perfBags;
 
       totalPax += paxCount;
       sumOrbital += parseFloat(String(row[keys.orbital]).replace('%', '')) || 0;
@@ -179,33 +185,32 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
         pouso: row[keys.pouso],
         std: String(row[keys.std]).includes(' ') ? String(row[keys.std]).split(' ')[1] : String(row[keys.std]),
         metrics: [
-          { label: 'Abertura CKIN', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk, perf: calcTimeEfficiency(checkinAbertura, targetAbertura) },
-          { label: 'Fecham. CKIN', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk, perf: calcTimeEfficiency(checkinFechamento, targetFechamento) },
-          { label: 'Início Emb.', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk, perf: calcTimeEfficiency(embarqueInicio, targetEmbarque) },
-          { label: 'Ult. Pax Emb.', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk, perf: calcTimeEfficiency(paxFinal, targetPax) },
-          { label: 'Bags Portão', real: bagsReal, target: paxCount >= 107 ? '35' : '--', ok: isBagsOk, perf: bagsEfficiency }
+          { label: 'Abertura CKIN', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk, perf: perfAbertura },
+          { label: 'Fecham. CKIN', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk, perf: perfFechamento },
+          { label: 'Início Emb.', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk, perf: perfEmbarque },
+          { label: 'Ult. Pax Emb.', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk, perf: perfUltimoPax },
+          { label: 'Bags Portão', real: bagsReal, target: paxCount >= 107 ? '35' : '--', ok: isBagsOk, perf: perfBags }
         ]
       };
     });
 
     return {
-      totalFlights: filteredByDate.length,
+      totalFlights: flightsCount,
       potentialFlights: potentialCount,
       totalPax,
-      avgOrbital: (sumOrbital / filteredByDate.length).toFixed(1),
-      avgBase: (sumBase / filteredByDate.length).toFixed(1),
-      slaAbertura: ((confAbertura / potentialCount) * 100).toFixed(1),
-      slaFechamento: ((confFechamento / potentialCount) * 100).toFixed(1),
-      slaEmbarque: ((confEmbarque / potentialCount) * 100).toFixed(1),
-      slaUltimoPax: ((confUltimoPax / potentialCount) * 100).toFixed(1),
-      slaBags: ((confBags / potentialCount) * 100).toFixed(1),
-      avgCheckin: (sumCheckinTime / filteredByDate.length).toFixed(1),
-      avgQueue: (sumQueueTime / filteredByDate.length).toFixed(1),
+      avgOrbital: (sumOrbital / flightsCount).toFixed(1),
+      avgBase: (sumBase / flightsCount).toFixed(1),
+      slaAbertura: (sumPerfAbertura / flightsCount).toFixed(1),
+      slaFechamento: (sumPerfFechamento / flightsCount).toFixed(1),
+      slaEmbarque: (sumPerfEmbarque / flightsCount).toFixed(1),
+      slaUltimoPax: (sumPerfUltimoPax / flightsCount).toFixed(1),
+      slaBags: (sumPerfBags / flightsCount).toFixed(1),
+      avgCheckin: (sumCheckinTime / flightsCount).toFixed(1),
+      avgQueue: (sumQueueTime / flightsCount).toFixed(1),
       flightDetails
     };
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
 
-  // Gráfico com labels de realizado
   const slaData = useMemo(() => performance ? [
     { name: 'Abertura', fullName: 'Abertura de Check-in', realizado: parseFloat(performance.slaAbertura), meta: 98 },
     { name: 'Fechamento', fullName: 'Fechamento de Check-in', realizado: parseFloat(performance.slaFechamento), meta: 98 },
@@ -273,13 +278,13 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <div className="flex items-center justify-between mb-8">
                   <div>
-                    <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight">Consolidado Mensal: SLA Operacional</h3>
-                    <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">Realizado vs Marcadores de Meta (Individualizados)</p>
+                    <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight">Consolidado Mensal: Média de Performance</h3>
+                    <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">Média do Percentual de Atingimento vs Meta Individualizada</p>
                   </div>
                   <div className="flex items-center gap-4">
                      <div className="flex items-center gap-2">
                         <div className="w-3 h-0.5 bg-[#004181] rounded-full border border-white"></div>
-                        <span className="text-[10px] font-black text-slate-400 uppercase">Meta Indicador</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase">Meta SLA</span>
                      </div>
                   </div>
                 </div>
@@ -288,14 +293,19 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                     <BarChart data={slaData} margin={{ top: 25, right: 40, left: 0, bottom: 20 }}>
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} interval={0} />
                       <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} tickFormatter={(v) => `${v}%`} />
-                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: string) => name === 'realizado' ? [`${value}%`, 'Realizado'] : [`${value}%`, 'Meta SLA']} labelFormatter={(label, props) => props[0]?.payload?.fullName || label} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: string) => name === 'realizado' ? [`${value}%`, 'Média Realizada'] : [`${value}%`, 'Meta SLA']} labelFormatter={(label, props) => props[0]?.payload?.fullName || label} />
                       <Bar dataKey="realizado" barSize={40} radius={[4, 4, 0, 0]}>
                         <LabelList dataKey="realizado" position="top" offset={10} content={(props: any) => (
                           <text x={props.x + props.width / 2} y={props.y - 10} fill="#64748b" fontSize="10" fontWeight="900" textAnchor="middle" className="uppercase">
                             {props.value}%
                           </text>
                         )} />
-                        {slaData.map((entry, index) => <Cell key={`cell-${index}`} fill="#f1f5f9" />)}
+                        {slaData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.realizado >= entry.meta ? '#10b981' : '#f1f5f9'} 
+                          />
+                        ))}
                       </Bar>
                       <Scatter dataKey="meta" shape={<CustomTargetTick />} />
                     </BarChart>
