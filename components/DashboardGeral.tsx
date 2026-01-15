@@ -131,7 +131,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     bagsAtendidas: findKeyInContract(['BAGS de Mão Atendidos']),
     checkinTime: findKeyInContract(['MÉDIA DE TEMPO ATENDIMENTO CHECK IN']),
     queueTime: findKeyInContract(['MÉDIA DE TEMPO AGUARDANDO NA FILA']),
-    pushback: findKeyInContract(['PUSH BACK', 'Push-back', 'Horário Pushback', 'Horário PUSH BACK']) || headers[13] // Fallback se não encontrar por nome
+    pushback: findKeyInContract(['PUSH BACK', 'Push-back', 'Horário Pushback', 'Horário PUSH BACK']) || headers[13]
   }), [contractHeaders, headers]);
 
   const metricAuditMeta: Record<string, MetricMeta> = {
@@ -215,7 +215,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const paxCount = parseBrazilianNumber(row[keys.pax]);
       const bagsRealValue = parseBrazilianNumber(row[keys.bagsAtendidas]);
 
-      // Cálculos dos Novos Indicadores de Fluxo
+      // Cálculos de Fluxo (em minutos)
       const cicloTotal = lastPaxMin - checkinAbertura;
       const eficienciaPortao = lastPaxMin - embarqueInicio;
       const eficienciaSolo = pushbackMin - pousoMin;
@@ -301,7 +301,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       slaEmbarque: (sumPerfEmbarque / flightsCount).toFixed(1),
       slaUltimoPax: (sumPerfUltimoPax / flightsCount).toFixed(1),
       slaBags: (sumPerfBags / flightsCount).toFixed(1),
-      // Novas métricas de fluxo
+      // Cálculo das médias solicitadas
       avgCicloTotal: countCiclo > 0 ? (sumCicloTotal / countCiclo).toFixed(0) : "0",
       avgEficienciaPortao: countPortao > 0 ? (sumEficienciaPortao / countPortao).toFixed(0) : "0",
       avgEficienciaSolo: countSolo > 0 ? (sumEficienciaSolo / countSolo).toFixed(0) : "0",
@@ -591,21 +591,21 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                 <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight mb-6">Métricas de Fluxo do Mês</h3>
                 <div className="space-y-4 flex-grow">
                   <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-[#004181]">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Ciclo Atendimento Cliente (Total)</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Média: Ciclo Atendimento Cliente</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-800">{performance.avgCicloTotal}</span>
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-cyan-400">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Eficiência de Embarque (Portão)</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Média: Eficiência de Embarque</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-800">{performance.avgEficienciaPortao}</span>
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-emerald-400">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Eficiência Operacional (Solo)</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Média: Eficiência Operacional</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-800">{performance.avgEficienciaSolo}</span>
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
