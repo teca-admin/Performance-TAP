@@ -113,7 +113,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
   };
 
   const findKeyInContract = (keywords: string[]) => {
-    return contractHeaders.find(h => keywords.some(k => h.toLowerCase() === k.toLowerCase())) || '';
+    return headers.find(h => keywords.some(k => h.toLowerCase() === k.toLowerCase())) || '';
   };
 
   const keys = useMemo(() => ({
@@ -131,6 +131,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     bagsAtendidas: findKeyInContract(['BAGS de Mão Atendidos']),
     checkinTime: findKeyInContract(['MÉDIA DE TEMPO ATENDIMENTO CHECK IN']),
     queueTime: findKeyInContract(['MÉDIA DE TEMPO AGUARDANDO NA FILA']),
+    pushback: findKeyInContract(['PUSH BACK', 'Push-back', 'Horário Pushback', 'Horário PUSH BACK']) || headers[13] // Fallback se não encontrar por nome
   }), [contractHeaders, headers]);
 
   const metricAuditMeta: Record<string, MetricMeta> = {
@@ -193,18 +194,44 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     if (!filteredByDate.length || activeContract !== 'geral') return null;
     const potentialCount = getPotentialFlightsCount(selectedMonth, selectedYear);
     const flightsCount = filteredByDate.length;
-    let totalPax = 0, sumOrbital = 0, sumBase = 0, sumCheckinTime = 0, sumQueueTime = 0;
+    let totalPax = 0, sumOrbital = 0, sumBase = 0;
     let sumPerfAbertura = 0, sumPerfFechamento = 0, sumPerfEmbarque = 0, sumPerfUltimoPax = 0, sumPerfBags = 0;
     let flightsWith100SlaCount = 0;
+
+    // Métricas de Fluxo
+    let sumCicloTotal = 0, countCiclo = 0;
+    let sumEficienciaPortao = 0, countPortao = 0;
+    let sumEficienciaSolo = 0, countSolo = 0;
 
     const flightDetails = filteredByDate.map(row => {
       const stdMin = timeToMinutes(row[keys.std]);
       const checkinAbertura = timeToMinutes(row[keys.abertura]);
       const checkinFechamento = timeToMinutes(row[keys.fechamento]);
       const embarqueInicio = timeToMinutes(row[keys.embarque]);
-      const paxFinal = timeToMinutes(row[keys.ultimoPax]);
+      const lastPaxMin = timeToMinutes(row[keys.ultimoPax]);
+      const pousoMin = timeToMinutes(row[keys.pouso]);
+      const pushbackMin = timeToMinutes(row[keys.pushback]);
+
       const paxCount = parseBrazilianNumber(row[keys.pax]);
       const bagsRealValue = parseBrazilianNumber(row[keys.bagsAtendidas]);
+
+      // Cálculos dos Novos Indicadores de Fluxo
+      const cicloTotal = lastPaxMin - checkinAbertura;
+      const eficienciaPortao = lastPaxMin - embarqueInicio;
+      const eficienciaSolo = pushbackMin - pousoMin;
+
+      if (lastPaxMin > 0 && checkinAbertura > 0 && cicloTotal > 0) {
+        sumCicloTotal += cicloTotal;
+        countCiclo++;
+      }
+      if (lastPaxMin > 0 && embarqueInicio > 0 && eficienciaPortao > 0) {
+        sumEficienciaPortao += eficienciaPortao;
+        countPortao++;
+      }
+      if (pushbackMin > 0 && pousoMin > 0 && eficienciaSolo > 0) {
+        sumEficienciaSolo += eficienciaSolo;
+        countSolo++;
+      }
 
       const targetAbertura = stdMin - 210;
       const targetFechamento = stdMin - 60;
@@ -214,7 +241,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const isAberturaOk = row[keys.abertura] && stdMin > 0 && checkinAbertura <= targetAbertura;
       const isFechamentoOk = row[keys.fechamento] && stdMin > 0 && checkinFechamento <= targetFechamento;
       const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= targetEmbarque;
-      const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
+      const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && lastPaxMin <= targetPax;
       const isBagsOk = paxCount >= 107 ? bagsRealValue >= 35 : true;
 
       const isPerfect = !!(isAberturaOk && isFechamentoOk && isEmbarqueOk && isUltimoPaxOk && isBagsOk);
@@ -231,7 +258,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const perfAberturaValue = calcTimeEfficiency(checkinAbertura, targetAbertura);
       const perfFechamentoValue = calcTimeEfficiency(checkinFechamento, targetFechamento);
       const perfEmbarqueValue = calcTimeEfficiency(embarqueInicio, targetEmbarque);
-      const perfUltimoPaxValue = calcTimeEfficiency(paxFinal, targetPax);
+      const perfUltimoPaxValue = calcTimeEfficiency(lastPaxMin, targetPax);
       const perfBagsValue = paxCount >= 107 ? Math.min(100, (bagsRealValue / 35) * 100) : 100;
 
       sumPerfAbertura += perfAberturaValue;
@@ -243,8 +270,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       totalPax += paxCount;
       sumOrbital += parseFloat(String(row[keys.orbital]).replace('%', '').replace(',', '.')) || 0;
       sumBase += parseFloat(String(row[keys.base]).replace('%', '').replace(',', '.')) || 0;
-      sumCheckinTime += parseBrazilianNumber(row[keys.checkinTime]);
-      sumQueueTime += parseBrazilianNumber(row[keys.queueTime]);
 
       const metrics = [
         { label: 'Abertura de Check-in', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk, perf: perfAberturaValue, logic: `Real (${row[keys.abertura] || '--'}) vs Meta (${minutesToTime(targetAbertura)}). Meta baseada em STD (${row[keys.std]}) - 210 min.`, raw: [{ label: 'STD Voo', column: keys.std, value: row[keys.std] }, { label: 'Abertura Real', column: keys.abertura, value: row[keys.abertura] }] },
@@ -276,8 +301,10 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       slaEmbarque: (sumPerfEmbarque / flightsCount).toFixed(1),
       slaUltimoPax: (sumPerfUltimoPax / flightsCount).toFixed(1),
       slaBags: (sumPerfBags / flightsCount).toFixed(1),
-      avgCheckin: (sumCheckinTime / flightsCount).toFixed(1),
-      avgQueue: (sumQueueTime / flightsCount).toFixed(1),
+      // Novas métricas de fluxo
+      avgCicloTotal: countCiclo > 0 ? (sumCicloTotal / countCiclo).toFixed(0) : "0",
+      avgEficienciaPortao: countPortao > 0 ? (sumEficienciaPortao / countPortao).toFixed(0) : "0",
+      avgEficienciaSolo: countSolo > 0 ? (sumEficienciaSolo / countSolo).toFixed(0) : "0",
       flightDetails
     };
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
@@ -538,7 +565,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={slaData} margin={{ top: 25, right: 40, left: 0, bottom: 20 }}>
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} interval={0} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 900, fill: '#64748b' }} interval={0} />
                       <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} tickFormatter={(v) => `${v}%`} />
                       <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }} formatter={(value: any, name: string) => name === 'realizado' ? [`${value}%`, 'Média Realizada'] : [`${value}%`, 'Meta SLA']} labelFormatter={(label, props) => props[0]?.payload?.fullName || label} />
                       <Bar dataKey="realizado" barSize={40} radius={[4, 4, 0, 0]}>
@@ -562,19 +589,26 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
 
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
                 <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-tight mb-6">Métricas de Fluxo do Mês</h3>
-                <div className="space-y-6 flex-grow">
-                  <div className="p-4 bg-slate-50 rounded-lg border-l-4 border-[#004181]">
-                    <p className="text-[11px] font-black text-slate-400 uppercase mb-1">Média Atendimento</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-black text-slate-800">{performance.avgCheckin}</span>
-                      <span className="text-[11px] font-bold text-slate-500 uppercase">Min</span>
+                <div className="space-y-4 flex-grow">
+                  <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-[#004181]">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Ciclo Atendimento Cliente (Total)</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-black text-slate-800">{performance.avgCicloTotal}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
                     </div>
                   </div>
-                  <div className="p-4 bg-slate-50 rounded-lg border-l-4 border-cyan-400">
-                    <p className="text-[11px] font-black text-slate-400 uppercase mb-1">Tempo de Fila</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-black text-slate-800">{performance.avgQueue}</span>
-                      <span className="text-[11px] font-bold text-slate-500 uppercase">Min</span>
+                  <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-cyan-400">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Eficiência de Embarque (Portão)</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-black text-slate-800">{performance.avgEficienciaPortao}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-lg border-l-4 border-emerald-400">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Eficiência Operacional (Solo)</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-black text-slate-800">{performance.avgEficienciaSolo}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Min</span>
                     </div>
                   </div>
                   <div className="mt-auto p-4 bg-slate-900 rounded-lg text-white">
