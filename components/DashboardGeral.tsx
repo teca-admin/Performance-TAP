@@ -21,8 +21,33 @@ interface DashboardGeralProps {
 
 type ContractType = 'geral' | 'ahl' | 'ohd' | 'rampa' | 'limpeza' | 'safety';
 
+interface MetricMeta {
+  name: string;
+  sourceColumn: string;
+  rule: string;
+  target: string;
+  description: string;
+}
+
+interface FlightAudit {
+  flightId: string;
+  metricName: string;
+  realValue: string | number;
+  targetValue: string | number;
+  perf: number;
+  isOk: boolean;
+  rawDetails: {
+    label: string;
+    column: string;
+    value: string | number;
+  }[];
+  logic: string;
+}
+
 const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRecords }) => {
   const [activeContract, setActiveContract] = useState<ContractType>('geral');
+  const [selectedMetric, setSelectedMetric] = useState<MetricMeta | null>(null);
+  const [selectedFlightAudit, setSelectedFlightAudit] = useState<FlightAudit | null>(null);
   
   // --- UTILITÁRIOS DE DATA E TEMPO ---
   const parseSheetDate = (dateStr: string | number): Date | null => {
@@ -41,28 +66,19 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   };
 
-  // Identificar dinamicamente os anos disponíveis no banco de dados
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     const pousoHeader = headers[1]; 
-    
     data.forEach(row => {
       const d = parseSheetDate(row[pousoHeader]);
       if (d) years.add(d.getFullYear());
     });
-    
-    if (years.size === 0) return [2025, 2026];
-    return Array.from(years).sort((a, b) => a - b);
+    const yearsArray = Array.from(years).sort((a, b) => a - b);
+    return yearsArray.length > 0 ? yearsArray : [new Date().getFullYear()];
   }, [data, headers]);
 
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(availableYears.includes(new Date().getFullYear()) ? new Date().getFullYear() : availableYears[0]);
-
-  useEffect(() => {
-    if (!availableYears.includes(selectedYear)) {
-      setSelectedYear(availableYears[0]);
-    }
-  }, [availableYears]);
 
   const groups = {
     geral: { start: 0, count: 14, color: '#004181' },
@@ -86,17 +102,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
   };
 
-  const getPotentialFlightsCount = (month: number, year: number): number => {
-    let count = 0;
-    const date = new Date(year, month, 1);
-    while (date.getMonth() === month) {
-      const day = date.getDay(); 
-      if (day === 1 || day === 3 || day === 5) count++;
-      date.setDate(date.getDate() + 1);
-    }
-    return count;
-  };
-
   const findKeyInContract = (keywords: string[]) => {
     return contractHeaders.find(h => keywords.some(k => h.toLowerCase() === k.toLowerCase())) || '';
   };
@@ -118,6 +123,56 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     queueTime: findKeyInContract(['MÉDIA DE TEMPO AGUARDANDO NA FILA']),
   }), [contractHeaders, headers]);
 
+  // Metadados para o Modal de Auditoria Geral
+  const metricAuditMeta: Record<string, MetricMeta> = {
+    'Abertura de Check-in': {
+      name: 'Abertura de Check-in',
+      sourceColumn: keys.abertura,
+      rule: 'Cálculo: (STD - 210 min) vs Real de Abertura.',
+      target: 'STD - 210 minutos (3h 30min antes).',
+      description: 'Mede a pontualidade na abertura do balcão de check-in.'
+    },
+    'Fechamento de Check-in': {
+      name: 'Fechamento de Check-in',
+      sourceColumn: keys.fechamento,
+      rule: 'Cálculo: (STD - 60 min) vs Real de Fechamento.',
+      target: 'STD - 60 minutos (1h antes).',
+      description: 'Garante o encerramento do processamento a tempo do manifesto.'
+    },
+    'Início do Embarque': {
+      name: 'Início do Embarque',
+      sourceColumn: keys.embarque,
+      rule: 'Cálculo: (STD - 40 min) vs Real de Início Embarque.',
+      target: 'STD - 40 minutos.',
+      description: 'Indicador de fluxo para embarque eficiente.'
+    },
+    'Último PAX a Bordo': {
+      name: 'Último PAX a Bordo',
+      sourceColumn: keys.ultimoPax,
+      rule: 'Cálculo: (STD - 10 min) vs Real do Último PAX.',
+      target: 'STD - 10 minutos.',
+      description: 'Define o limite para fechamento de portas.'
+    },
+    'BAGS de Mão': {
+      name: 'BAGS de Mão',
+      sourceColumn: `${keys.bagsAtendidas}`,
+      rule: 'Se PAX >= 107, meta 35 bolsas. Caso < 107, isento (100%).',
+      target: 'Min. 35 unidades (se ocupação alta).',
+      description: 'Gestão de espaço em cabine e agilidade.'
+    }
+  };
+
+  const getPotentialFlightsCount = (month: number, year: number): number => {
+    let count = 0;
+    const date = new Date(year, month, 1);
+    while (date.getMonth() === month) {
+      const day = date.getDay(); 
+      if (day === 1 || day === 3 || day === 5) count++;
+      date.setDate(date.getDate() + 1);
+    }
+    return count;
+  };
+
   const filteredByDate = useMemo(() => {
     return data.filter(row => {
       const d = parseSheetDate(row[keys.pouso]);
@@ -127,12 +182,9 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
 
   const performance = useMemo(() => {
     if (!filteredByDate.length || activeContract !== 'geral') return null;
-
     const potentialCount = getPotentialFlightsCount(selectedMonth, selectedYear);
     const flightsCount = filteredByDate.length;
     let totalPax = 0, sumOrbital = 0, sumBase = 0, sumCheckinTime = 0, sumQueueTime = 0;
-    
-    // Acumuladores para as médias de performance
     let sumPerfAbertura = 0, sumPerfFechamento = 0, sumPerfEmbarque = 0, sumPerfUltimoPax = 0, sumPerfBags = 0;
 
     const flightDetails = filteredByDate.map(row => {
@@ -142,7 +194,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const embarqueInicio = timeToMinutes(row[keys.embarque]);
       const paxFinal = timeToMinutes(row[keys.ultimoPax]);
       const paxCount = Number(row[keys.pax]) || 0;
-      const bagsReal = Number(row[keys.bagsAtendidas]) || 0;
+      const bagsRealValue = Number(row[keys.bagsAtendidas]) || 0;
 
       const targetAbertura = stdMin - 210;
       const targetFechamento = stdMin - 60;
@@ -153,26 +205,25 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const isFechamentoOk = row[keys.fechamento] && stdMin > 0 && checkinFechamento <= targetFechamento;
       const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= targetEmbarque;
       const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
-      const isBagsOk = paxCount >= 107 ? bagsReal >= 35 : true;
+      const isBagsOk = paxCount >= 107 ? bagsRealValue >= 35 : true;
 
-      // Cálculo de Eficiência Individual (Percentual Atingido x Meta)
       const calcTimeEfficiency = (real: number, target: number) => {
         if (real === 0 || target === 0) return 0;
         if (real <= target) return 100;
         return Math.max(0, 100 - (real - target)); 
       };
 
-      const perfAbertura = calcTimeEfficiency(checkinAbertura, targetAbertura);
-      const perfFechamento = calcTimeEfficiency(checkinFechamento, targetFechamento);
-      const perfEmbarque = calcTimeEfficiency(embarqueInicio, targetEmbarque);
-      const perfUltimoPax = calcTimeEfficiency(paxFinal, targetPax);
-      const perfBags = paxCount >= 107 ? Math.min(100, (bagsReal / 35) * 100) : 100;
+      const perfAberturaValue = calcTimeEfficiency(checkinAbertura, targetAbertura);
+      const perfFechamentoValue = calcTimeEfficiency(checkinFechamento, targetFechamento);
+      const perfEmbarqueValue = calcTimeEfficiency(embarqueInicio, targetEmbarque);
+      const perfUltimoPaxValue = calcTimeEfficiency(paxFinal, targetPax);
+      const perfBagsValue = paxCount >= 107 ? Math.min(100, (bagsRealValue / 35) * 100) : 100;
 
-      sumPerfAbertura += perfAbertura;
-      sumPerfFechamento += perfFechamento;
-      sumPerfEmbarque += perfEmbarque;
-      sumPerfUltimoPax += perfUltimoPax;
-      sumPerfBags += perfBags;
+      sumPerfAbertura += perfAberturaValue;
+      sumPerfFechamento += perfFechamentoValue;
+      sumPerfEmbarque += perfEmbarqueValue;
+      sumPerfUltimoPax += perfUltimoPaxValue;
+      sumPerfBags += perfBagsValue;
 
       totalPax += paxCount;
       sumOrbital += parseFloat(String(row[keys.orbital]).replace('%', '')) || 0;
@@ -180,17 +231,76 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       sumCheckinTime += parseFloat(String(row[keys.checkinTime])) || 0;
       sumQueueTime += parseFloat(String(row[keys.queueTime])) || 0;
 
+      const metrics = [
+        { 
+          label: 'Abertura de Check-in', 
+          real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], 
+          target: minutesToTime(targetAbertura), 
+          ok: isAberturaOk, 
+          perf: perfAberturaValue,
+          logic: `Real (${row[keys.abertura]}) vs Meta (${minutesToTime(targetAbertura)}). Meta baseada em STD (${row[keys.std]}) - 210 min.`,
+          raw: [
+            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
+            { label: 'Abertura Real', column: keys.abertura, value: row[keys.abertura] }
+          ]
+        },
+        { 
+          label: 'Fechamento de Check-in', 
+          real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], 
+          target: minutesToTime(targetFechamento), 
+          ok: isFechamentoOk, 
+          perf: perfFechamentoValue,
+          logic: `Real (${row[keys.fechamento]}) vs Meta (${minutesToTime(targetFechamento)}). Meta baseada em STD (${row[keys.std]}) - 60 min.`,
+          raw: [
+            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
+            { label: 'Fechamento Real', column: keys.fechamento, value: row[keys.fechamento] }
+          ]
+        },
+        { 
+          label: 'Início do Embarque', 
+          real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], 
+          target: minutesToTime(targetEmbarque), 
+          ok: isEmbarqueOk, 
+          perf: perfEmbarqueValue,
+          logic: `Real (${row[keys.embarque]}) vs Meta (${minutesToTime(targetEmbarque)}). Meta baseada em STD (${row[keys.std]}) - 40 min.`,
+          raw: [
+            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
+            { label: 'Início Real', column: keys.embarque, value: row[keys.embarque] }
+          ]
+        },
+        { 
+          label: 'Último PAX a Bordo', 
+          real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], 
+          target: minutesToTime(targetPax), 
+          ok: isUltimoPaxOk, 
+          perf: perfUltimoPaxValue,
+          logic: `Real (${row[keys.ultimoPax]}) vs Meta (${minutesToTime(targetPax)}). Meta baseada em STD (${row[keys.std]}) - 10 min.`,
+          raw: [
+            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
+            { label: 'Último PAX Real', column: keys.ultimoPax, value: row[keys.ultimoPax] }
+          ]
+        },
+        { 
+          label: 'BAGS de Mão', 
+          real: bagsRealValue, 
+          target: paxCount >= 107 ? '35' : '--', 
+          ok: isBagsOk, 
+          perf: perfBagsValue,
+          logic: paxCount >= 107 
+            ? `Voo com ${paxCount} passageiros (>= 107). Exige min. 35 BAGS. Real: ${bagsRealValue}.`
+            : `Voo com ${paxCount} passageiros (< 107). Isento de meta de bags de mão.`,
+          raw: [
+            { label: 'Total PAX', column: keys.pax, value: row[keys.pax] },
+            { label: 'BAGS Coletadas', column: keys.bagsAtendidas, value: row[keys.bagsAtendidas] }
+          ]
+        }
+      ];
+
       return {
         id: row[keys.id],
         pouso: row[keys.pouso],
         std: String(row[keys.std]).includes(' ') ? String(row[keys.std]).split(' ')[1] : String(row[keys.std]),
-        metrics: [
-          { label: 'Abertura CKIN', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk, perf: perfAbertura },
-          { label: 'Fecham. CKIN', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk, perf: perfFechamento },
-          { label: 'Início Emb.', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk, perf: perfEmbarque },
-          { label: 'Ult. Pax Emb.', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk, perf: perfUltimoPax },
-          { label: 'Bags Portão', real: bagsReal, target: paxCount >= 107 ? '35' : '--', ok: isBagsOk, perf: perfBags }
-        ]
+        metrics
       };
     });
 
@@ -234,12 +344,160 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
 
   const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
+  const openFlightAudit = (f: any, m: any) => {
+    setSelectedFlightAudit({
+      flightId: f.id,
+      metricName: m.label,
+      realValue: m.real,
+      targetValue: m.target,
+      perf: m.perf,
+      isOk: m.ok,
+      logic: m.logic,
+      rawDetails: m.raw
+    });
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in relative">
+      {/* MODAL DE AUDITORIA DE MÉTRICAS GERAIS (CABEÇALHO) */}
+      {selectedMetric && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-md animate-fade-in" onClick={() => setSelectedMetric(null)}>
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#004181] p-6 text-white flex justify-between items-center">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70 mb-1">Guia de Indicador (SLA)</p>
+                <h3 className="text-lg font-black uppercase">{selectedMetric.name}</h3>
+              </div>
+              <button onClick={() => setSelectedMetric(null)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div>
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Rastreabilidade no Banco de Dados</h4>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                  </div>
+                  <span className="text-[12px] font-black text-slate-800">{selectedMetric.sourceColumn}</span>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Padrão de Meta Operacional</h4>
+                <p className="text-[14px] font-black text-[#004181]">{selectedMetric.target}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="space-y-1">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Resumo Lógico</h4>
+                  <p className="text-[11px] font-bold text-slate-600 leading-relaxed">{selectedMetric.rule}</p>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Importância</h4>
+                  <p className="text-[11px] font-bold text-slate-600 leading-relaxed">{selectedMetric.description}</p>
+                </div>
+              </div>
+            </div>
+            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setSelectedMetric(null)} className="px-6 py-2 bg-slate-900 text-white text-[10px] font-black rounded-lg uppercase tracking-widest hover:bg-black transition-all">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE AUDITORIA DE VOO (DRILL-DOWN) */}
+      {selectedFlightAudit && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={() => setSelectedFlightAudit(null)}>
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform animate-scale-in" onClick={e => e.stopPropagation()}>
+            <div className={`p-6 text-white flex justify-between items-center ${selectedFlightAudit.isOk ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 p-2 rounded-xl">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Rastreabilidade: Voo {selectedFlightAudit.flightId}</p>
+                  <h3 className="text-xl font-black uppercase">{selectedFlightAudit.metricName}</h3>
+                </div>
+              </div>
+              <button onClick={() => setSelectedFlightAudit(null)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col items-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase mb-3">Realizado (Voo)</span>
+                  <span className={`text-2xl font-black ${selectedFlightAudit.isOk ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {selectedFlightAudit.realValue}
+                  </span>
+                </div>
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col items-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase mb-3">Objetivo (Alvo)</span>
+                  <span className="text-2xl font-black text-[#004181]">
+                    {selectedFlightAudit.targetValue}
+                  </span>
+                </div>
+                <div className="bg-slate-900 p-5 rounded-2xl shadow-xl flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase mb-1">Desempenho</span>
+                  <span className="text-3xl font-black text-white">{selectedFlightAudit.perf.toFixed(0)}%</span>
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                <div>
+                  <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-[#004181]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                    Memória de Cálculo (Lógica do BI)
+                  </h4>
+                  <div className="p-4 bg-[#004181]/5 border border-[#004181]/10 rounded-xl">
+                    <p className="text-[13px] font-bold text-slate-700 leading-relaxed italic">
+                      "{selectedFlightAudit.logic}"
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                    Dados Originais (Banco de Dados)
+                  </h4>
+                  <div className="overflow-hidden border border-slate-100 rounded-xl">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Campo</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Coluna na Planilha</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Valor Bruto</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {selectedFlightAudit.rawDetails.map((rd, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3 text-[11px] font-black text-slate-700">{rd.label}</td>
+                            <td className="px-4 py-3 text-[10px] font-bold text-slate-400 font-mono">{rd.column}</td>
+                            <td className="px-4 py-3 text-[11px] font-black text-indigo-600 bg-indigo-50/30">{rd.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setSelectedFlightAudit(null)} className="px-8 py-3 bg-slate-900 text-white text-[11px] font-black rounded-xl uppercase tracking-[0.2em] hover:bg-black transition-all shadow-xl shadow-slate-200">
+                Confirmado
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4">
         <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-2 items-center justify-between">
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-[11px] font-black text-slate-400 uppercase ml-2 mr-2">Filtro de Contrato:</span>
+            <span className="text-[11px] font-black text-slate-400 uppercase ml-2 mr-2">Contrato Selecionado:</span>
             {(Object.keys(groups) as ContractType[]).map((id) => (
               <button
                 key={id}
@@ -342,7 +600,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="text-[15px] font-black text-slate-800 uppercase tracking-tight">Atendimentos Individuais</h3>
-                  <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">Comparativo Realizado vs Meta por Voo</p>
+                  <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">Comparativo Realizado vs Meta por Voo (Clique nos resultados para auditoria)</p>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2">
@@ -367,8 +625,16 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                         { name: 'Último PAX a Bordo', meta: '95%' },
                         { name: 'BAGS de Mão', meta: '70%' }
                       ].map(h => (
-                        <th key={h.name} className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">
-                          {h.name} <span className="text-[9px] text-slate-400 ml-1">({h.meta})</span>
+                        <th 
+                          key={h.name} 
+                          className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center cursor-help hover:bg-slate-100 transition-colors group"
+                          onClick={() => setSelectedMetric(metricAuditMeta[h.name])}
+                        >
+                          <div className="flex flex-col items-center">
+                            <span>{h.name}</span>
+                            <span className="text-[9px] text-slate-400 font-bold">SLA: {h.meta}</span>
+                            <div className="w-4 h-0.5 bg-[#004181] mt-1 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                          </div>
                         </th>
                       ))}
                     </tr>
@@ -387,13 +653,16 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                         </td>
                         {f.metrics.map((m, idx) => (
                           <td key={idx} className="px-4 py-5">
-                            <div className="flex flex-col items-center justify-center group">
+                            <div 
+                              className="flex flex-col items-center justify-center group cursor-zoom-in hover:scale-105 transition-transform"
+                              onClick={() => openFlightAudit(f, m)}
+                            >
                               <div className="flex items-baseline gap-1.5 mb-2">
                                 <span className={`text-[13px] font-black leading-none ${m.ok ? 'text-[#10b981]' : 'text-[#fb394e]'}`}>{m.real || '--'}</span>
                                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${m.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{m.perf.toFixed(0)}%</span>
                               </div>
                               <div className="w-full max-w-[70px] h-[1.5px] bg-slate-200 relative mb-2">
-                                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-md transition-transform group-hover:scale-125 ${m.ok ? 'bg-[#10b981]' : 'bg-[#fb394e]'}`}></div>
+                                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-md transition-transform group-hover:scale-150 ${m.ok ? 'bg-[#10b981]' : 'bg-[#fb394e]'}`}></div>
                               </div>
                               <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">Meta: {m.target}</div>
                             </div>
