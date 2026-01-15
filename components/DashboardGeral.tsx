@@ -360,8 +360,16 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                   <thead>
                     <tr className="bg-slate-50/50 border-b border-slate-100">
                       <th className="px-6 py-4 text-[11px] font-black text-slate-500 uppercase">ID Voo / STD / Data</th>
-                      {['Abertura de Check-in', 'Fechamento de Check-in', 'Início do Embarque', 'Último PAX a Bordo', 'BAGS de Mão'].map(h => (
-                        <th key={h} className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">{h}</th>
+                      {[
+                        { name: 'Abertura de Check-in', meta: '98%' },
+                        { name: 'Fechamento de Check-in', meta: '98%' },
+                        { name: 'Início do Embarque', meta: '95%' },
+                        { name: 'Último PAX a Bordo', meta: '95%' },
+                        { name: 'BAGS de Mão', meta: '70%' }
+                      ].map(h => (
+                        <th key={h.name} className="px-4 py-4 text-[11px] font-black text-slate-500 uppercase text-center">
+                          {h.name} <span className="text-[9px] text-slate-400 ml-1">({h.meta})</span>
+                        </th>
                       ))}
                     </tr>
                   </thead>
