@@ -66,6 +66,15 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   };
 
+  const parseBrazilianNumber = (val: string | number): number => {
+    if (val === undefined || val === null || val === '') return 0;
+    if (typeof val === 'number') return val;
+    // Substitui vírgula por ponto e remove outros caracteres não numéricos exceto sinal de menos
+    const sanitized = String(val).replace(/\./g, '').replace(',', '.').trim();
+    const parsed = parseFloat(sanitized);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     const pousoHeader = headers[1]; 
@@ -186,6 +195,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     const flightsCount = filteredByDate.length;
     let totalPax = 0, sumOrbital = 0, sumBase = 0, sumCheckinTime = 0, sumQueueTime = 0;
     let sumPerfAbertura = 0, sumPerfFechamento = 0, sumPerfEmbarque = 0, sumPerfUltimoPax = 0, sumPerfBags = 0;
+    let flightsWith100Sla = 0;
 
     const flightDetails = filteredByDate.map(row => {
       const stdMin = timeToMinutes(row[keys.std]);
@@ -193,8 +203,8 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const checkinFechamento = timeToMinutes(row[keys.fechamento]);
       const embarqueInicio = timeToMinutes(row[keys.embarque]);
       const paxFinal = timeToMinutes(row[keys.ultimoPax]);
-      const paxCount = Number(row[keys.pax]) || 0;
-      const bagsRealValue = Number(row[keys.bagsAtendidas]) || 0;
+      const paxCount = parseBrazilianNumber(row[keys.pax]);
+      const bagsRealValue = parseBrazilianNumber(row[keys.bagsAtendidas]);
 
       const targetAbertura = stdMin - 210;
       const targetFechamento = stdMin - 60;
@@ -206,6 +216,11 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const isEmbarqueOk = row[keys.embarque] && stdMin > 0 && embarqueInicio <= targetEmbarque;
       const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
       const isBagsOk = paxCount >= 107 ? bagsRealValue >= 35 : true;
+
+      // Incrementa se TODOS os SLAs do voo estiverem OK
+      if (isAberturaOk && isFechamentoOk && isEmbarqueOk && isUltimoPaxOk && isBagsOk) {
+        flightsWith100Sla++;
+      }
 
       const calcTimeEfficiency = (real: number, target: number) => {
         if (real === 0 || target === 0) return 0;
@@ -226,10 +241,10 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       sumPerfBags += perfBagsValue;
 
       totalPax += paxCount;
-      sumOrbital += parseFloat(String(row[keys.orbital]).replace('%', '')) || 0;
-      sumBase += parseFloat(String(row[keys.base]).replace('%', '')) || 0;
-      sumCheckinTime += parseFloat(String(row[keys.checkinTime])) || 0;
-      sumQueueTime += parseFloat(String(row[keys.queueTime])) || 0;
+      sumOrbital += parseFloat(String(row[keys.orbital]).replace('%', '').replace(',', '.')) || 0;
+      sumBase += parseFloat(String(row[keys.base]).replace('%', '').replace(',', '.')) || 0;
+      sumCheckinTime += parseBrazilianNumber(row[keys.checkinTime]);
+      sumQueueTime += parseBrazilianNumber(row[keys.queueTime]);
 
       const metrics = [
         { 
@@ -238,7 +253,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
           target: minutesToTime(targetAbertura), 
           ok: isAberturaOk, 
           perf: perfAberturaValue,
-          logic: `Real (${row[keys.abertura]}) vs Meta (${minutesToTime(targetAbertura)}). Meta baseada em STD (${row[keys.std]}) - 210 min.`,
+          logic: `Real (${row[keys.abertura] || '--'}) vs Meta (${minutesToTime(targetAbertura)}). Meta baseada em STD (${row[keys.std]}) - 210 min.`,
           raw: [
             { label: 'STD Voo', column: keys.std, value: row[keys.std] },
             { label: 'Abertura Real', column: keys.abertura, value: row[keys.abertura] }
@@ -250,7 +265,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
           target: minutesToTime(targetFechamento), 
           ok: isFechamentoOk, 
           perf: perfFechamentoValue,
-          logic: `Real (${row[keys.fechamento]}) vs Meta (${minutesToTime(targetFechamento)}). Meta baseada em STD (${row[keys.std]}) - 60 min.`,
+          logic: `Real (${row[keys.fechamento] || '--'}) vs Meta (${minutesToTime(targetFechamento)}). Meta baseada em STD (${row[keys.std]}) - 60 min.`,
           raw: [
             { label: 'STD Voo', column: keys.std, value: row[keys.std] },
             { label: 'Fechamento Real', column: keys.fechamento, value: row[keys.fechamento] }
@@ -262,7 +277,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
           target: minutesToTime(targetEmbarque), 
           ok: isEmbarqueOk, 
           perf: perfEmbarqueValue,
-          logic: `Real (${row[keys.embarque]}) vs Meta (${minutesToTime(targetEmbarque)}). Meta baseada em STD (${row[keys.std]}) - 40 min.`,
+          logic: `Real (${row[keys.embarque] || '--'}) vs Meta (${minutesToTime(targetEmbarque)}). Meta baseada em STD (${row[keys.std]}) - 40 min.`,
           raw: [
             { label: 'STD Voo', column: keys.std, value: row[keys.std] },
             { label: 'Início Real', column: keys.embarque, value: row[keys.embarque] }
@@ -274,7 +289,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
           target: minutesToTime(targetPax), 
           ok: isUltimoPaxOk, 
           perf: perfUltimoPaxValue,
-          logic: `Real (${row[keys.ultimoPax]}) vs Meta (${minutesToTime(targetPax)}). Meta baseada em STD (${row[keys.std]}) - 10 min.`,
+          logic: `Real (${row[keys.ultimoPax] || '--'}) vs Meta (${minutesToTime(targetPax)}). Meta baseada em STD (${row[keys.std]}) - 10 min.`,
           raw: [
             { label: 'STD Voo', column: keys.std, value: row[keys.std] },
             { label: 'Último PAX Real', column: keys.ultimoPax, value: row[keys.ultimoPax] }
@@ -287,7 +302,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
           ok: isBagsOk, 
           perf: perfBagsValue,
           logic: paxCount >= 107 
-            ? `Voo com ${paxCount} passageiros (>= 107). Exige min. 35 BAGS. Real: ${bagsRealValue}.`
+            ? `Voo com ${paxCount} passageiros (>= 107). Exige min. 35 BAGS. Real: ${bagsRealValue} (Extraído da coluna: ${keys.bagsAtendidas}).`
             : `Voo com ${paxCount} passageiros (< 107). Isento de meta de bags de mão.`,
           raw: [
             { label: 'Total PAX', column: keys.pax, value: row[keys.pax] },
@@ -307,6 +322,8 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     return {
       totalFlights: flightsCount,
       potentialFlights: potentialCount,
+      flightsWith100Sla,
+      flightsBelowSla: flightsCount - flightsWith100Sla,
       totalPax,
       avgOrbital: (sumOrbital / flightsCount).toFixed(1),
       avgBase: (sumBase / flightsCount).toFixed(1),
@@ -475,7 +492,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="px-4 py-3 text-[11px] font-black text-slate-700">{rd.label}</td>
                             <td className="px-4 py-3 text-[10px] font-bold text-slate-400 font-mono">{rd.column}</td>
-                            <td className="px-4 py-3 text-[11px] font-black text-indigo-600 bg-indigo-50/30">{rd.value}</td>
+                            <td className="px-4 py-3 text-[11px] font-black text-indigo-600 bg-indigo-50/30">{rd.value || '--'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -525,8 +542,18 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       {activeContract === 'geral' ? (
         performance ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <StatCard title="Voos Realizados" value={performance.totalFlights} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>} />
+              <StatCard 
+                title="Atingido" 
+                value={performance.flightsWith100Sla} 
+                icon={<svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} 
+              />
+              <StatCard 
+                title="Abaixo do SLA" 
+                value={performance.flightsBelowSla} 
+                icon={<svg className="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} 
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
