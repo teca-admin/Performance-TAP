@@ -705,13 +705,47 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                   >
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-[9px] font-black text-slate-400 uppercase group-hover:text-emerald-600">Média: Eficiência Operacional</p>
-                      <svg className="w-3 h-3 text-slate-300 group-hover:text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <svg className="w-3 h-3 text-slate-300 group-hover:text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-black text-slate-800">{performance.avgEficienciaSolo}</span>
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Horas</span>
                     </div>
                   </div>
+
+                  {/* NOVOS INDICADORES NO ESPAÇO VAZIO */}
+                  <div className="grid grid-cols-1 gap-3 pt-2">
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                        </div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Volume de Passageiros</span>
+                      </div>
+                      <span className="text-[15px] font-black text-slate-900">{performance.totalPax.toLocaleString('pt-BR')} <small className="text-[8px] opacity-40">PAX</small></span>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-7 h-7 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Pontualidade Estratégica</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col flex-1">
+                          <span className="text-[14px] font-black text-[#004181]">{performance.avgOrbital}%</span>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase">Média Orbital</span>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200"></div>
+                        <div className="flex flex-col flex-1 text-right">
+                          <span className="text-[14px] font-black text-emerald-600">{performance.avgBase}%</span>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase">Média Base</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="mt-auto p-4 bg-slate-900 rounded-lg text-white">
                     <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Resumo da Amostra</p>
                     <p className="text-[12px] font-bold leading-tight">Foram processados {performance.totalFlights} voos de um potencial de {performance.potentialFlights} atendimentos (Seg/Qua/Sex).</p>
