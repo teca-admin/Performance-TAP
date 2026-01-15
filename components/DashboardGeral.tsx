@@ -20,6 +20,7 @@ interface DashboardGeralProps {
 }
 
 type ContractType = 'geral' | 'ahl' | 'ohd' | 'rampa' | 'limpeza' | 'safety';
+type FlightFilterType = 'all' | 'perfect' | 'failed';
 
 interface MetricMeta {
   name: string;
@@ -48,6 +49,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
   const [activeContract, setActiveContract] = useState<ContractType>('geral');
   const [selectedMetric, setSelectedMetric] = useState<MetricMeta | null>(null);
   const [selectedFlightAudit, setSelectedFlightAudit] = useState<FlightAudit | null>(null);
+  const [flightListFilter, setFlightListFilter] = useState<FlightFilterType>('all');
   
   // --- UTILITÁRIOS DE DATA E TEMPO ---
   const parseSheetDate = (dateStr: string | number): Date | null => {
@@ -69,7 +71,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
   const parseBrazilianNumber = (val: string | number): number => {
     if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'number') return val;
-    // Substitui vírgula por ponto e remove outros caracteres não numéricos exceto sinal de menos
     const sanitized = String(val).replace(/\./g, '').replace(',', '.').trim();
     const parsed = parseFloat(sanitized);
     return isNaN(parsed) ? 0 : parsed;
@@ -132,7 +133,6 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     queueTime: findKeyInContract(['MÉDIA DE TEMPO AGUARDANDO NA FILA']),
   }), [contractHeaders, headers]);
 
-  // Metadados para o Modal de Auditoria Geral
   const metricAuditMeta: Record<string, MetricMeta> = {
     'Abertura de Check-in': {
       name: 'Abertura de Check-in',
@@ -195,7 +195,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
     const flightsCount = filteredByDate.length;
     let totalPax = 0, sumOrbital = 0, sumBase = 0, sumCheckinTime = 0, sumQueueTime = 0;
     let sumPerfAbertura = 0, sumPerfFechamento = 0, sumPerfEmbarque = 0, sumPerfUltimoPax = 0, sumPerfBags = 0;
-    let flightsWith100Sla = 0;
+    let flightsWith100SlaCount = 0;
 
     const flightDetails = filteredByDate.map(row => {
       const stdMin = timeToMinutes(row[keys.std]);
@@ -217,9 +217,9 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       const isUltimoPaxOk = row[keys.ultimoPax] && stdMin > 0 && paxFinal <= targetPax;
       const isBagsOk = paxCount >= 107 ? bagsRealValue >= 35 : true;
 
-      // Incrementa se TODOS os SLAs do voo estiverem OK
-      if (isAberturaOk && isFechamentoOk && isEmbarqueOk && isUltimoPaxOk && isBagsOk) {
-        flightsWith100Sla++;
+      const isPerfect = !!(isAberturaOk && isFechamentoOk && isEmbarqueOk && isUltimoPaxOk && isBagsOk);
+      if (isPerfect) {
+        flightsWith100SlaCount++;
       }
 
       const calcTimeEfficiency = (real: number, target: number) => {
@@ -247,83 +247,27 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       sumQueueTime += parseBrazilianNumber(row[keys.queueTime]);
 
       const metrics = [
-        { 
-          label: 'Abertura de Check-in', 
-          real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], 
-          target: minutesToTime(targetAbertura), 
-          ok: isAberturaOk, 
-          perf: perfAberturaValue,
-          logic: `Real (${row[keys.abertura] || '--'}) vs Meta (${minutesToTime(targetAbertura)}). Meta baseada em STD (${row[keys.std]}) - 210 min.`,
-          raw: [
-            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
-            { label: 'Abertura Real', column: keys.abertura, value: row[keys.abertura] }
-          ]
-        },
-        { 
-          label: 'Fechamento de Check-in', 
-          real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], 
-          target: minutesToTime(targetFechamento), 
-          ok: isFechamentoOk, 
-          perf: perfFechamentoValue,
-          logic: `Real (${row[keys.fechamento] || '--'}) vs Meta (${minutesToTime(targetFechamento)}). Meta baseada em STD (${row[keys.std]}) - 60 min.`,
-          raw: [
-            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
-            { label: 'Fechamento Real', column: keys.fechamento, value: row[keys.fechamento] }
-          ]
-        },
-        { 
-          label: 'Início do Embarque', 
-          real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], 
-          target: minutesToTime(targetEmbarque), 
-          ok: isEmbarqueOk, 
-          perf: perfEmbarqueValue,
-          logic: `Real (${row[keys.embarque] || '--'}) vs Meta (${minutesToTime(targetEmbarque)}). Meta baseada em STD (${row[keys.std]}) - 40 min.`,
-          raw: [
-            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
-            { label: 'Início Real', column: keys.embarque, value: row[keys.embarque] }
-          ]
-        },
-        { 
-          label: 'Último PAX a Bordo', 
-          real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], 
-          target: minutesToTime(targetPax), 
-          ok: isUltimoPaxOk, 
-          perf: perfUltimoPaxValue,
-          logic: `Real (${row[keys.ultimoPax] || '--'}) vs Meta (${minutesToTime(targetPax)}). Meta baseada em STD (${row[keys.std]}) - 10 min.`,
-          raw: [
-            { label: 'STD Voo', column: keys.std, value: row[keys.std] },
-            { label: 'Último PAX Real', column: keys.ultimoPax, value: row[keys.ultimoPax] }
-          ]
-        },
-        { 
-          label: 'BAGS de Mão', 
-          real: bagsRealValue, 
-          target: paxCount >= 107 ? '35' : '--', 
-          ok: isBagsOk, 
-          perf: perfBagsValue,
-          logic: paxCount >= 107 
-            ? `Voo com ${paxCount} passageiros (>= 107). Exige min. 35 BAGS. Real: ${bagsRealValue} (Extraído da coluna: ${keys.bagsAtendidas}).`
-            : `Voo com ${paxCount} passageiros (< 107). Isento de meta de bags de mão.`,
-          raw: [
-            { label: 'Total PAX', column: keys.pax, value: row[keys.pax] },
-            { label: 'BAGS Coletadas', column: keys.bagsAtendidas, value: row[keys.bagsAtendidas] }
-          ]
-        }
+        { label: 'Abertura de Check-in', real: String(row[keys.abertura]).split(' ')[1] || row[keys.abertura], target: minutesToTime(targetAbertura), ok: isAberturaOk, perf: perfAberturaValue, logic: `Real (${row[keys.abertura] || '--'}) vs Meta (${minutesToTime(targetAbertura)}). Meta baseada em STD (${row[keys.std]}) - 210 min.`, raw: [{ label: 'STD Voo', column: keys.std, value: row[keys.std] }, { label: 'Abertura Real', column: keys.abertura, value: row[keys.abertura] }] },
+        { label: 'Fechamento de Check-in', real: String(row[keys.fechamento]).split(' ')[1] || row[keys.fechamento], target: minutesToTime(targetFechamento), ok: isFechamentoOk, perf: perfFechamentoValue, logic: `Real (${row[keys.fechamento] || '--'}) vs Meta (${minutesToTime(targetFechamento)}). Meta baseada em STD (${row[keys.std]}) - 60 min.`, raw: [{ label: 'STD Voo', column: keys.std, value: row[keys.std] }, { label: 'Fechamento Real', column: keys.fechamento, value: row[keys.fechamento] }] },
+        { label: 'Início do Embarque', real: String(row[keys.embarque]).split(' ')[1] || row[keys.embarque], target: minutesToTime(targetEmbarque), ok: isEmbarqueOk, perf: perfEmbarqueValue, logic: `Real (${row[keys.embarque] || '--'}) vs Meta (${minutesToTime(targetEmbarque)}). Meta baseada em STD (${row[keys.std]}) - 40 min.`, raw: [{ label: 'STD Voo', column: keys.std, value: row[keys.std] }, { label: 'Início Real', column: keys.embarque, value: row[keys.embarque] }] },
+        { label: 'Último PAX a Bordo', real: String(row[keys.ultimoPax]).split(' ')[1] || row[keys.ultimoPax], target: minutesToTime(targetPax), ok: isUltimoPaxOk, perf: perfUltimoPaxValue, logic: `Real (${row[keys.ultimoPax] || '--'}) vs Meta (${minutesToTime(targetPax)}). Meta baseada em STD (${row[keys.std]}) - 10 min.`, raw: [{ label: 'STD Voo', column: keys.std, value: row[keys.std] }, { label: 'Último PAX Real', column: keys.ultimoPax, value: row[keys.ultimoPax] }] },
+        { label: 'BAGS de Mão', real: bagsRealValue, target: paxCount >= 107 ? '35' : '--', ok: isBagsOk, perf: perfBagsValue, logic: paxCount >= 107 ? `Voo com ${paxCount} passageiros (>= 107). Exige min. 35 BAGS. Real: ${bagsRealValue}.` : `Voo com ${paxCount} passageiros (< 107). Isento de meta de bags de mão.`, raw: [{ label: 'Total PAX', column: keys.pax, value: row[keys.pax] }, { label: 'BAGS Coletadas', column: keys.bagsAtendidas, value: row[keys.bagsAtendidas] }] }
       ];
 
       return {
         id: row[keys.id],
         pouso: row[keys.pouso],
         std: String(row[keys.std]).includes(' ') ? String(row[keys.std]).split(' ')[1] : String(row[keys.std]),
-        metrics
+        metrics,
+        isPerfect
       };
     });
 
     return {
       totalFlights: flightsCount,
       potentialFlights: potentialCount,
-      flightsWith100Sla,
-      flightsBelowSla: flightsCount - flightsWith100Sla,
+      flightsWith100Sla: flightsWith100SlaCount,
+      flightsBelowSla: flightsCount - flightsWith100SlaCount,
       totalPax,
       avgOrbital: (sumOrbital / flightsCount).toFixed(1),
       avgBase: (sumBase / flightsCount).toFixed(1),
@@ -337,6 +281,13 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       flightDetails
     };
   }, [filteredByDate, keys, activeContract, selectedMonth, selectedYear]);
+
+  const displayedFlights = useMemo(() => {
+    if (!performance) return [];
+    if (flightListFilter === 'perfect') return performance.flightDetails.filter(f => f.isPerfect);
+    if (flightListFilter === 'failed') return performance.flightDetails.filter(f => !f.isPerfect);
+    return performance.flightDetails;
+  }, [performance, flightListFilter]);
 
   const slaData = useMemo(() => performance ? [
     { name: 'Abertura', fullName: 'Abertura de Check-in', realizado: parseFloat(performance.slaAbertura), meta: 98 },
@@ -372,6 +323,10 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
       logic: m.logic,
       rawDetails: m.raw
     });
+  };
+
+  const handleCardFilter = (filter: FlightFilterType) => {
+    setFlightListFilter(prev => prev === filter ? 'all' : filter);
   };
 
   return (
@@ -543,16 +498,26 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
         performance ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Voos Realizados" value={performance.totalFlights} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>} />
+              <StatCard 
+                title="Voos Realizados" 
+                value={performance.totalFlights} 
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>} 
+                onClick={() => setFlightListFilter('all')}
+                isActive={flightListFilter === 'all'}
+              />
               <StatCard 
                 title="Atingido" 
                 value={performance.flightsWith100Sla} 
-                icon={<svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} 
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} 
+                onClick={() => handleCardFilter('perfect')}
+                isActive={flightListFilter === 'perfect'}
               />
               <StatCard 
                 title="Abaixo do SLA" 
                 value={performance.flightsBelowSla} 
-                icon={<svg className="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} 
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} 
+                onClick={() => handleCardFilter('failed')}
+                isActive={flightListFilter === 'failed'}
               />
             </div>
 
@@ -623,8 +588,12 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                 <div>
-                  <h3 className="text-[15px] font-black text-slate-800 uppercase tracking-tight">Atendimentos Individuais</h3>
-                  <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">Comparativo Realizado vs Meta por Voo (Clique nos resultados para auditoria)</p>
+                  <h3 className="text-[15px] font-black text-slate-800 uppercase tracking-tight">
+                    {flightListFilter === 'all' ? 'Atendimentos Individuais' : flightListFilter === 'perfect' ? 'Voos: Atingido (100% SLA)' : 'Voos: Abaixo do SLA'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-bold uppercase mt-1">
+                    Exibindo {displayedFlights.length} voos com base no filtro selecionado acima
+                  </p>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2">
@@ -664,7 +633,7 @@ const DashboardGeral: React.FC<DashboardGeralProps> = ({ data, headers, totalRec
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {performance.flightDetails.map((f, i) => (
+                    {displayedFlights.map((f, i) => (
                       <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-6 py-5">
                           <div className="flex flex-col">
